@@ -28,7 +28,6 @@ class SupplierCreate(BaseModel):
     name: str
     cnpj: Optional[str] = None
     phone: Optional[str] = None
-    telefone_residencial: Optional[str] = None
     email: Optional[str] = None
     contact: Optional[str] = None
     address: Optional[str] = None
@@ -42,7 +41,6 @@ class SupplierUpdate(BaseModel):
     name: Optional[str] = None
     cnpj: Optional[str] = None
     phone: Optional[str] = None
-    telefone_residencial: Optional[str] = None
     email: Optional[str] = None
     contact: Optional[str] = None
     address: Optional[str] = None

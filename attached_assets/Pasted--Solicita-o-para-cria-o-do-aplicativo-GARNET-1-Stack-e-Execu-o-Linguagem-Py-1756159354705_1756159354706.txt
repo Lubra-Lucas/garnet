@@ -1,0 +1,635 @@
+# Solicitação para criação do aplicativo **GARNET**
+
+## 1. Stack e Execução
+
+• **Linguagem:** Python 3.11+
+
+• **Interface:** Streamlit multipage (pasta `pages/`)
+
+• **Banco de dados (dev):** SQLite em `data/app.db`
+
+• **Banco de dados (prod):** PostgreSQL via variável `DATABASE_URL` (fallback para SQLite)
+
+• **ORM/validação:** SQLModel (com SQLAlchemy) + Pydantic
+
+• **Autenticação/RBAC:** login com `passlib[bcrypt]`; perfis iniciais: `manager`, `operator`, `viewer` (expansível para Admin/PCP/Qualidade/Compras/Financeiro/Estoque/Vendas)
+
+• **Cache:** `st.cache_resource` (conexão DB) e `st.cache_data` (relatórios)
+
+• **Uploads/Exportação:** `openpyxl` (Excel), `pandas` (CSV/XLSX), geração de PDF opcional (`reportlab`)
+
+• **Dependências:**
+
+* streamlit
+* sqlmodel
+* sqlalchemy
+* pydantic
+* passlib\[bcrypt]
+* pandas
+* numpy
+* plotly
+* python-dotenv
+* psycopg2-binary
+* openpyxl
+* reportlab (opcional para PDFs)
+
+• **Execução (desenvolvimento):**
+
+```bash
+streamlit run app.py --server.port $PORT --server.address 0.0.0.0
+```
+
+(Em Windows PowerShell, use `$env:PORT=8501` antes, se necessário.)
+
+• **Variáveis de ambiente (.env):**
+
+```
+DATABASE_URL=postgresql+psycopg2://usuario:senha@host:5432/database
+SECRET_KEY=troque_esta_chave
+APP_ENV=dev
+```
+
+---
+
+## 2. Banco de Dados
+
+Criar `db.py` com suporte automático a SQLite/Postgres:
+
+```python
+# db.py
+import os
+from sqlmodel import SQLModel, create_engine
+
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///data/app.db")
+connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+engine = create_engine(DATABASE_URL, echo=False, connect_args=connect_args)
+
+def init_db():
+    SQLModel.metadata.create_all(engine)
+```
+
+• No deploy, definir `DATABASE_URL` no formato `postgresql+psycopg2://usuario:senha@host:5432/database`.
+
+• **Seeds/Import:** comando inicial em `services/business.py` para importar cadastros a partir de planilhas (Fornecedores, MPs, Produtos, Planilha Payot, Análise Pagamentos, Planilha Produção).
+
+---
+
+## 3. Estrutura de Pastas
+
+```
+app.py
+.dbg/                     # (opcional) scripts de debug
+.dbg/seed_sample.py       # (opcional) popular dados de exemplo
+
+.dbg/fixtures/            # (opcional) arquivos CSV/XLSX de exemplo
+
+auth.py
+models.py
+schema.py                 # (Pydantic I/O)
+db.py
+services/
+  business.py             # regras de negócio (custos, MRP, FEFO, rastreio)
+  reports.py              # consultas/relatórios e KPIs
+  io_import.py            # importadores CSV/XLSX (openpyxl)
+  io_export.py            # exportadores CSV/PDF/Excel
+pages/
+  1_Home.py
+  2_Fornecedores.py
+  3_MateriasPrimas.py
+  4_Produtos.py
+  5_Formulacao.py
+  6_Estoque.py
+  7_OrdensProducao.py
+  8_MRPPlanejamento.py
+  9_ComprasPedidos.py
+  10_RecebimentoQualidade.py
+  11_LotesRastreabilidade.py
+  12_AgendaFornecedores.py
+  13_Financeiro.py
+  14_CustosPrecificacao.py
+  15_RelatoriosKPIs.py
+  16_UsuariosPermissoes.py
+  17_ConfiguracoesGerais.py
+  18_DocumentosPOPs.py
+  19_ExpedicaoVendas.py
+  20_InventariosAuditorias.py
+  21_ManutencaoEquipamentos.py
+  22_QualidadeMelhoria.py
+  23_IntegracoesImportacao.py
+data/
+  app.db
+.streamlit/
+  config.toml
+requirements.txt
+.env.example
+```
+
+**`.streamlit/config.toml` (tema e layout):**
+
+```toml
+[theme]
+primaryColor = "#6C2BD9"
+backgroundColor = "#0E0D13"
+secondaryBackgroundColor = "#191826"
+textColor = "#F5F5F7"
+font = "sans serif"
+
+[server]
+headless = true
+enableXsrfProtection = true
+```
+
+**`requirements.txt`:**
+
+```
+streamlit>=1.37
+sqlmodel>=0.0.14
+sqlalchemy>=2.0
+pydantic>=2.5
+passlib[bcrypt]>=1.7
+pandas>=2.2
+numpy>=1.26
+plotly>=5.22
+python-dotenv>=1.0
+psycopg2-binary>=2.9
+openpyxl>=3.1
+reportlab>=4.2  # opcional
+```
+
+---
+
+## 4. Autenticação e Sessão
+
+• Tela inicial com **login (usuário/senha)**.
+
+• Usuário logado fica em `st.session_state["user"] = {id, name, role}`.
+
+• Páginas verificam `role` para permitir/recusar ações (RBAC básico).
+
+• Perfis futuros: Admin, PCP, Qualidade, Compras, Financeiro, Estoque, Vendas/Atendimento.
+
+**`auth.py` (esqueleto):**
+
+```python
+# auth.py
+import streamlit as st
+from passlib.context import CryptContext
+from sqlmodel import Session, select
+from models import User
+from db import engine
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def hash_password(password: str) -> str:
+    return pwd_context.hash(password)
+
+def verify_password(plain: str, hashed: str) -> bool:
+    return pwd_context.verify(plain, hashed)
+
+def login_form():
+    st.title("GARNET – Login")
+    u = st.text_input("Usuário")
+    p = st.text_input("Senha", type="password")
+    if st.button("Entrar", use_container_width=True):
+        with Session(engine) as s:
+            user = s.exec(select(User).where(User.username == u)).first()
+            if user and verify_password(p, user.password_hash):
+                st.session_state["user"] = {"id": user.id, "name": user.name, "role": user.role}
+                st.success("Autenticado!")
+                st.experimental_rerun()
+            else:
+                st.error("Usuário ou senha inválidos.")
+
+def require_login(roles: list[str] | None = None):
+    user = st.session_state.get("user")
+    if not user:
+        st.stop()
+    if roles and user.get("role") not in roles:
+        st.error("Acesso negado para seu perfil.")
+        st.stop()
+```
+
+**`app.py` (gate + Home):**
+
+```python
+# app.py
+import streamlit as st
+from db import init_db
+from auth import login_form
+
+st.set_page_config(page_title="GARNET", layout="wide")
+init_db()
+
+if "user" not in st.session_state:
+    login_form()
+else:
+    st.sidebar.success(f"Bem-vindo(a), {st.session_state['user']['name']}")
+    st.title("GARNET – Home")
+    st.info("Use o menu 'Pages' para navegar.")
+```
+
+> **Importante:** no topo de **cada** arquivo em `pages/`, chamar `require_login()` e, quando necessário, `require_login(["manager","operator"])`.
+
+---
+
+## 5. Modelagem de Dados (SQLModel)
+
+**`models.py` (principal):**
+
+```python
+# models.py
+from datetime import date, datetime
+from typing import Optional
+from sqlmodel import SQLModel, Field, Relationship
+
+class User(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    username: str = Field(index=True, unique=True)
+    name: str
+    role: str = Field(default="viewer")
+    password_hash: str
+
+class Supplier(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    name: str
+    cnpj: str | None = Field(default=None, index=True)
+    phone: str | None = None
+    email: str | None = None
+    contact: str | None = None
+    address: str | None = None
+    payment_terms: str | None = None
+    avg_leadtime_days: int | None = None
+    certifications: str | None = None
+    notes: str | None = None
+
+class RawMaterial(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    code: str = Field(index=True, unique=True)
+    name_usual: str
+    name_chemical: str | None = None
+    supplier_id: int | None = Field(default=None, foreign_key="supplier.id")
+    base_unit: str  # KG, G, L, ML, UN
+    base_price: float  # preço por unidade base
+    density: float | None = None
+    conv_factor: float | None = None  # ex.: KG↔G
+    shelf_life_days: int | None = None
+    location: str | None = None
+    status: str = Field(default="ativo")
+
+class Product(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    code: str = Field(index=True, unique=True)
+    name: str
+    client: str | None = None
+    category: str | None = None
+    unit_weight: float  # g ou ml
+    unit_uom: str  # G, ML, UN
+    std_batch_weight: float = 1500.0  # gramas (1,5 kg)
+    status: str = Field(default="ativo")
+
+class Formulation(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    product_id: int = Field(foreign_key="product.id")
+    version: str = Field(default="v1")
+    state: str = Field(default="rascunho")  # rascunho/aprovada/obsoleta
+
+class FormulaItem(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    formulation_id: int = Field(foreign_key="formulation.id")
+    raw_material_id: int = Field(foreign_key="rawmaterial.id")
+    qty: float  # quantidade por lote padrão
+    uom: str
+    percent: float | None = None
+
+class StockLot(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    item_type: str  # MP ou PA
+    item_id: int
+    lot_code: str
+    qty: float
+    uom: str
+    expiry: date | None = None
+    status: str = Field(default="Aprovado")
+    avg_cost: float | None = None
+    location: str | None = None
+
+class ProductionOrder(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    code: str = Field(index=True, unique=True)
+    product_id: int = Field(foreign_key="product.id")
+    qty_to_produce: float
+    planned_lot: str | None = None
+    start_date: date | None = None
+    end_date: date | None = None
+    workcenter: str | None = None
+    status: str = Field(default="Planejada")
+
+class PurchaseOrder(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    supplier_id: int = Field(foreign_key="supplier.id")
+    order_date: date
+    status: str = Field(default="Aberto")
+    payment_terms: str | None = None
+
+class PurchaseItem(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    po_id: int = Field(foreign_key="purchaseorder.id")
+    raw_material_id: int = Field(foreign_key="rawmaterial.id")
+    qty: float
+    uom: str
+    price: float
+    due_date: date | None = None
+
+class Payable(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    supplier_id: int | None = Field(default=None, foreign_key="supplier.id")
+    doc_ref: str
+    cost_center: str | None = None
+    value: float
+    due_date: date
+    status: str = Field(default="Pendente")
+    notes: str | None = None
+```
+
+---
+
+## 6. Serviços (Regras de Negócio)
+
+**`services/business.py` (esqueleto):**
+
+```python
+# services/business.py
+from sqlmodel import Session, select
+from models import RawMaterial, Product, Formulation, FormulaItem
+
+# Custo proporcional da MP na formulação (conversões simples)
+def material_cost_unit(rm: RawMaterial, qty: float, uom: str) -> float:
+    # normaliza para unidade base simples (ex.: G->KG, ML->L)
+    factor = 1.0
+    if rm.base_unit == "KG" and uom.upper() in ["G", "GRAMAS"]:
+        factor = 1/1000
+    if rm.base_unit == "L" and uom.upper() == "ML":
+        factor = 1/1000
+    # se densidade for necessária para conversões massa/volume, aplicar aqui
+    return rm.base_price * (qty * factor)
+
+# Custo total do lote + custo por unidade produzida
+def formulation_cost(session: Session, formulation_id: int, unit_qty: float) -> tuple[float, float]:
+    items = session.exec(select(FormulaItem).where(FormulaItem.formulation_id==formulation_id)).all()
+    total = 0.0
+    for it in items:
+        rm = session.get(RawMaterial, it.raw_material_id)
+        total += material_cost_unit(rm, it.qty, it.uom)
+    # custo por unidade = total do lote / quantidade usada em 1 produto
+    unit_cost = total / unit_qty if unit_qty else 0.0
+    return total, unit_cost
+
+# FEFO: ordena lotes por validade crescente para reservas
+
+def fefo_pick(lots):
+    return sorted(lots, key=lambda x: (x.expiry or x.id))
+
+# MRP simplificado: Necessidade líquida = demanda - (estoque disponível - reservas)
+```
+
+**`services/reports.py` (KPIs básicos):**
+
+```python
+# services/reports.py
+import pandas as pd
+
+def kpi_dashboard(df_ops, df_stock, df_pedidos):
+    # calcular OTIF, giro, cobertura etc. (placeholders)
+    return {
+        "otif": 0.97,
+        "giro_estoque": 6.2,
+        "cobertura_dias": 28,
+    }
+```
+
+
+
+---
+
+## 7. Padrões de UI/UX (Streamlit)
+
+• `st.set_page_config(page_title="GARNET", layout="wide")`
+
+• Componentes: `st.tabs`, `st.dataframe`/`st.data_editor` (edição inline), `st.download_button` (CSV/Excel/PDF), `st.plotly_chart` (gráficos), `st.toast`/`st.status` (feedback), `st.sidebar` (filtros).
+
+• Pesquisa global por nome/código/lote (Home) e filtros por coluna nas tabelas.
+
+---
+
+## 8. Funcionalidades por Página
+
+### **Primeira página: Home**
+
+O que irá conter:
+• Cards‑resumo: MPs mais consumidas, MPs em estoque, OPs deste mês, Itens com validades próximas, Itens com estoques baixos, Pedidos em andamento.
+• Gráfico rápido de consumo por família de MP (últimos 30/90 dias).
+• Lista de alertas (ex.: vencimentos, estoques mínimos, OPs atrasadas).
+• Barra de pesquisa global (MP, Produto, OP, Fornecedor, Lote).
+• Acesso rápido a ações: Criar OP, Cadastrar MP, Cadastrar Produto, Novo Pedido de Compra.
+
+### **Segunda página: Fornecedores**
+
+O que irá conter:
+• Tabela de fornecedores com filtros (Nome, CNPJ, Status, Categoria, Avaliação).
+• Aba **Cadastrar novo fornecedor**: Nome do Fornecedor, CNPJ, Telefone, Email, Contatos, Endereço, Condição de Pagamento padrão, Prazo médio de entrega, Certificações/ANVISA, Observações.
+• Botão **Importar/Exportar** (CSV/Excel).
+• Histórico de desempenho (OTD, qualidade, não conformidades).
+• Acesso à **Agenda/CRM** (ver página 12).
+
+### **Terceira página: Matérias Primas**
+
+O que irá conter:
+• Tabela de MPs: Código, Nome usual, Nome químico, Fornecedor principal, Unidade Base (KG, G, L, ML, UN), Preço por unidade base, Estoque atual, Estoque mínimo, Validade padrão, Localização, Status.
+• **Cadastrar nova MP**: Nome Usual, Nome Químico, Fornecedor, Unidade Base, Preço por Unidade Base, Densidade (opcional), Fator de conversão (KG↔G), Descrição técnica/Boletim, Anexos (FISPQ, especificação).
+• Ações em massa: Atualizar preços, Definir estoque mínimo, Inativar.
+
+### **Quarta página: Produtos**
+
+O que irá conter:
+• Tabela: Código, Nome, Cliente, Categoria/Linha, Custo de Produção (último), Preço Sugerido (Planilha Payot), Status, Peso/Volume unitário, EAN/Interno.
+• **Cadastrar novo produto**: Nome, Cliente, Peso/Volume unitário, Rendimento por lote padrão (ex.: 1,5 kg), Impostos/Markup padrão.
+• Ao clicar: Formulação associada, ficha técnica, POPs, histórico de custos e OPs.
+
+### **Quinta página: Formulação**
+
+O que irá conter:
+• Selecionar Produto e versão.
+• Itens: MP, Quantidade por lote padrão (ex.: 1,5 kg), Unidade, %, Custo unitário da MP, Custo proporcional.
+• **Cálculo automático:** se MP custa R\$ X por unidade base, e usa‑se q (convertida para a base), custo = `X × (q / unidade_base)`.
+• Exibir **Custo total do lote** e **custo de 1 unidade** = (Custo total do lote) ÷ (quantidade usada em 1 produto).
+• Campo **Quantidade usada em 1 produto** (ex.: 50 g).
+• Controle de versões: Rascunho, Aprovada, Obsoleta.
+• Ações: Duplicar, Comparar versões, Exportar ficha (PDF/Excel).
+
+### **Sexta página: Estoque**
+
+O que irá conter:
+• Tabela de estoques (MPs e PAs): Item, Lote, Quantidade, Unidade, Vencimento, Status (Aprovado/Quarentena/Reprovado), Custo médio, Localização.
+• **Buscar** por nome/código/lote.
+• Indicadores: Cobertura de estoque (dias), Itens com validades próximas (FEFO), Itens abaixo do mínimo.
+• Movimentações: Entrada, Saída, Transferência, Ajuste (com motivo e anexo).
+• Rotinas: Inventário cíclico, Inventário geral, Conferência por código de barras/QR.
+
+### **Sétima página: Ordens de Produção (OP)**
+
+O que irá conter:
+• Criar/listar OPs: Código OP, Produto, Qtd a produzir, Lote previsto, Data início/fim, Centro de trabalho, Status (Planejada, Liberada, Em Produção, Concluída, Cancelada).
+• **Explosão de MP** a partir da formulação + reserva/baixa de MP (FEFO).
+• Apontamentos: início/fim de etapas, consumo real, produção boa/refugo, paradas.
+• Anexos: POPs, instruções, checklists.
+
+### **Oitava página: MRP & Planejamento**
+
+O que irá conter:
+• MRP simplificado: necessidade de MPs a partir das OPs e previsões.
+• **PMP** mensal/semanal, considerando capacidade por turno.
+• Sugestões de reprogramação (FIFO/FEFO, lote econômico, sequenciamento por setup).
+• Dashboard: carga vs. capacidade, gargalos, OTIF.
+
+### **Nona página: Compras / Pedidos**
+
+O que irá conter:
+• Solicitações e pedidos de compra (MP/embalagem/serviços).
+• Campos: Fornecedor, Item, Qtd, Preço negociado, Prazo, Condição de pagamento, Status.
+• Integração com MRP para **sugestões de compra**.
+• Geração de **PDF** de pedido e histórico de cotações.
+
+### **Décima página: Recebimento & Qualidade**
+
+O que irá conter:
+• Pré‑agendamento e registro de recebimento por pedido.
+• Criação de **lote de MP** com validade, COA, anexos.
+• Workflow QC: Amostragem, Aprovado/Quarentena/Reprovado, bloqueio até aprovação.
+• Registro de **não conformidades** e CAPA.
+
+### **Décima primeira página: Lotes & Rastreabilidade**
+
+O que irá conter:
+• Consulta por lote de MP ou PA.
+• Árvore de rastreabilidade (MP → OP → Produto → Cliente) e inversa.
+• Relatórios para **recall** e fechamento (FEFO/validades).
+
+### **Décima segunda página: Agenda/CRM de Fornecedores**
+
+O que irá conter:
+• Calendário de contatos, visitas, follow‑ups, pendências.
+• Tarefas com responsáveis, prazos e lembretes.
+• Linha do tempo por fornecedor (emails/chamadas/negociações/anexos).
+
+### **Décima terceira página: Financeiro / Pagamentos**
+
+O que irá conter:
+• Contas a pagar (Análise Pagamentos): Fornecedor, Documento, Centro de Custo, Valor, Vencimento, Status, Observações.
+• Fluxo de caixa previsto × realizado.
+• Conciliação de pedidos recebidos com faturas/boletos.
+• Campos fiscais: Impostos, Retenções, Categoria.
+
+### **Décima quarta página: Custos & Precificação**
+
+O que irá conter:
+• Matéria‑prima, Embalagem, Mão de obra direta, Custos indiretos, Impostos, Markup, Margem de contribuição, Preço final sugerido.
+• Simulações por volume e variação cambial.
+• Relatório de **ponto de equilíbrio** e **margem** por cliente/produto.
+
+### **Décima quinta página: Relatórios & KPIs**
+
+O que irá conter:
+• Indicadores: OTIF, OEE (básico), giro de estoque, acurácia de inventário, lead time de compra, custo por lote, margem por produto.
+• Relatórios exportáveis (PDF/Excel) com filtros e agendamento.
+
+### **Décima sexta página: Usuários & Permissões**
+
+O que irá conter:
+• Perfis: Admin, PCP, Qualidade, Compras, Financeiro, Estoque, Vendas/Atendimento.
+• Controle de acesso por página/ação (ver/criar/editar/aprovar/excluir).
+• Log de auditoria (quem fez o quê e quando).
+
+### **Décima sétima página: Configurações Gerais**
+
+O que irá conter:
+• Parâmetros: moeda, impostos padrão, unidades e conversões, rendimento por lote, estoques mínimos, regras FEFO/FIFO.
+• Modelos de documentos (pedido de compra, ficha de produto, OP, etiquetas).
+• Integrações (API, webhooks, planilhas/CSV).
+
+### **Décima oitava página: Documentos & POPs**
+
+O que irá conter:
+• Biblioteca de POPs, instruções de processo, checklists, RDC/ANVISA relevantes.
+• Versionamento, aprovação e controle de distribuição.
+
+### **Décima nona página: Expedição & Vendas (opcional)**
+
+O que irá conter:
+• Pedidos de venda, separação (picking), conferência e expedição.
+• Reserva de estoque de PA por pedido e rastreio.
+
+### **Vigésima página: Inventários & Auditorias**
+
+O que irá conter:
+• Planejamento de inventários cíclicos por curva ABC.
+• Relatórios de divergências e ajustes com aprovação.
+
+### **Vigésima primeira página: Manutenção & Equipamentos (TPM)**
+
+O que irá conter:
+• Cadastro de máquinas/linhas, planos de manutenção, inspeções autônomas.
+• Registro de paradas e MTBF/MTTR básicos.
+
+### **Vigésima segunda página: Qualidade & Melhoria Contínua**
+
+O que irá conter:
+• Não conformidades, CAPA, FMEA simples.
+• Painel de 5S/PDCA e auditorias internas.
+
+### **Vigésima terceira página: Integrações & Importação**
+
+O que irá conter:
+• Importar dados (Fornecedores, MPs, Produtos, Preços) via Excel/CSV.
+• Conectores para Google Sheets/Drive e API REST.
+
+---
+
+## 9. Funcionalidades Críticas
+
+• Cálculo automático de **custo de formulações** (unidades e densidade).
+• **Precificação integrada**  com markup e impostos.
+• **MRP conectado** às OPs e Compras (sugestões automatizadas).
+• **Rastreabilidade completa** de lotes (MP → OP → PA).
+• **Exportações** (CSV, Excel, PDF) em módulos‑chave.
+• **FEFO** para reservas e baixas de MP.
+• **Auditoria** de ações críticas (edições em formulação, custos, OPs, ajustes de estoque).
+
+---
+
+## 10. Padrões de Código
+
+• Tipagem estática (PEP‑484), `ruff/black` (opcional).
+• Funções de UI separadas das regras de negócio.
+• Queries centralizadas em `services/reports.py` com DataFrames para gráficos/exports.
+• Reuso de componentes (ex.: formulários de cadastro e edição) via funções utilitárias.
+
+---
+
+## 11. Roteiro de Entrega (MVP → Iterações)
+
+1. MVP: Autenticação, Fornecedores, MPs, Produtos, Formulação, Estoque, OPs, Custos & Precificação (básico).
+2. Iteração 2: MRP & Compras, Recebimento & Qualidade, Rastreabilidade, Financeiro.
+3. Iteração 3: Relatórios & KPIs, Integrações & Importação, Inventários cíclicos, POPs.
+4. Iteração 4: TPM, Expedição & Vendas, Melhoria Contínua.
+
+---
+
+## 12. Observações
+
+
+• Evitar o uso de EMOJI , deixar o mais profissional possível
+Todas as páginas devem chamar `require_login()` no topo.
+• `init_db()` é executado no `app.py` (garante criação de tabelas).
+• Para Postgres em produção, configurar `DATABASE_URL` e manter backup do SQLite dev.
+• Manter scripts de **importação** para migrar dados das planilhas atuais para o banco.
+• Definir **unidades padrão** (G/ML/KG/L/UN) e **conversões** na configuração geral.
