@@ -20,14 +20,6 @@ st.set_page_config(page_title="GARNET - Dashboard", layout="wide")
 # Professional page header using utility
 render_page_header("Dashboard Principal", "Visão geral do sistema e indicadores operacionais")
 
-# Welcome message
-st.markdown(f"""
-<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 1.5rem; border-radius: 10px; margin: 1rem 0 2rem 0; text-align: center;">
-    <h2 style="margin: 0; color: white; font-weight: 300;">👋 Bem-vindo,  como está? {user['name']}!</h2>
-    <p style="margin: 0.5rem 0 0 0; color: white; opacity: 0.9;">Como está? Esperamos que tenha um excelente dia de trabalho!</p>
-</div>
-""", unsafe_allow_html=True)
-
 # Generate real-time data for KPIs with performance monitoring
 with PerformanceMonitor("Carregando dados do dashboard"):
     with Session(engine) as session:
