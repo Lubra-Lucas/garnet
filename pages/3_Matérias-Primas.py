@@ -1,0 +1,480 @@
+# pages/3_MateriasPrimas.py
+import streamlit as st
+from auth import require_login, has_permission
+from sqlmodel import Session, select
+from db import engine
+from models import RawMaterial, Supplier
+from schema import RawMaterialCreate, RawMaterialUpdate
+from services.io_import import import_raw_materials_from_excel, generate_import_template
+from services.io_export import export_raw_materials_to_excel
+import pandas as pd
+
+# Require login for this page
+user = require_login()
+
+st.set_page_config(page_title="GARNET - Matérias-Primas", layout="wide")
+
+# Professional page header
+st.markdown("""
+<div style="padding: 1rem 0 2rem 0; border-bottom: 1px solid #E8E8E8; margin-bottom: 2rem;">
+    <h1 style="margin: 0; color: #2E4A6B; font-weight: 300;">Gestão de Matérias-Primas e Insumos</h1>
+    <p style="margin: 0.5rem 0 0 0; color: #666; font-size: 1.1rem;">Cadastro e controle de materiais e insumos</p>
+</div>
+""", unsafe_allow_html=True)
+
+# Clean tabs without icons
+tab1, tab2, tab3 = st.tabs(["Catálogo", "Cadastro", "Importar / Exportar"])
+
+with tab1:
+    # Clean section header
+    st.markdown("""
+    <div style="margin-bottom: 1.5rem;">
+        <h3 style="margin: 0; color: #2E4A6B; font-weight: 400;">Catálogo de Matérias-Primas</h3>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Clean filters layout
+    filter_col1, filter_col2, filter_col3, filter_col4 = st.columns([2, 1, 1, 1])
+    
+    with filter_col1:
+        search_term = st.text_input("Buscar por código ou nome", placeholder="Digite para filtrar...")
+    
+    with filter_col2:
+        # Get suppliers for filter
+        with Session(engine) as session:
+            suppliers = session.exec(select(Supplier).where(Supplier.status == "ativo")).all()
+            supplier_options = ["Todos"] + [s.name for s in suppliers]
+        
+        supplier_filter = st.selectbox("Fornecedor:", supplier_options)
+    
+    with filter_col3:
+        status_filter = st.selectbox("Status:", ["Todos", "ativo", "inativo"])
+    
+    with filter_col4:
+        unit_filter = st.selectbox("Unidade:", ["Todas", "KG", "G", "L", "ML", "UN"])
+    
+    # Get raw materials with filters
+    with Session(engine) as session:
+        query = select(RawMaterial, Supplier.name).outerjoin(
+            Supplier, RawMaterial.supplier_id == Supplier.id
+        )
+        
+        if search_term:
+            query = query.where(
+                (RawMaterial.code.ilike(f"%{search_term}%")) |
+                (RawMaterial.name_usual.ilike(f"%{search_term}%")) |
+                (RawMaterial.name_chemical.ilike(f"%{search_term}%"))
+            )
+        
+        if supplier_filter != "Todos":
+            query = query.where(Supplier.name == supplier_filter)
+        
+        if status_filter != "Todos":
+            query = query.where(RawMaterial.status == status_filter)
+        
+        if unit_filter != "Todas":
+            query = query.where(RawMaterial.base_unit == unit_filter)
+        
+        results = session.exec(query.order_by(RawMaterial.code)).all()
+    
+    if results:
+        # Convert to DataFrame for display
+        rm_data = []
+        for rm, supplier_name in results:
+            rm_data.append({
+                "ID": rm.id,
+                "Código": rm.code,
+                "Nome Usual": rm.name_usual,
+                "Nome Químico": rm.name_chemical or "N/A",
+                "Fornecedor": supplier_name or "N/A",
+                "Unidade": rm.base_unit,
+                "Preço Base": f"R$ {rm.base_price:.2f}",
+                "Validade (dias)": rm.shelf_life_days or "N/A",
+                "Localização": rm.location or "N/A",
+                "Status": rm.status
+            })
+        
+        df = pd.DataFrame(rm_data)
+        
+        # Display as interactive table
+        if has_permission("manager"):
+            edited_df = st.data_editor(
+                df,
+                hide_index=True,
+                use_container_width=True,
+                disabled=["ID", "Código"],
+                column_config={
+                    "Status": st.column_config.SelectboxColumn(
+                        "Status",
+                        options=["ativo", "inativo"],
+                        required=True
+                    ),
+                    "Preço Base": st.column_config.NumberColumn(
+                        "Preço Base (R$)",
+                        min_value=0.0,
+                        format="R$ %.2f"
+                    )
+                }
+            )
+            
+            # Update button
+            if st.button("💾 Salvar Alterações"):
+                with Session(engine) as session:
+                    for idx, row in edited_df.iterrows():
+                        rm = session.get(RawMaterial, row["ID"])
+                        if rm:
+                            rm.name_usual = row["Nome Usual"]
+                            rm.name_chemical = row["Nome Químico"] if row["Nome Químico"] != "N/A" else None
+                            rm.location = row["Localização"] if row["Localização"] != "N/A" else None
+                            rm.status = row["Status"]
+                            # Parse price
+                            price_str = row["Preço Base"].replace("R$ ", "").replace(",", ".")
+                            rm.base_price = float(price_str)
+                    
+                    session.commit()
+                    st.success("Alterações salvas com sucesso!")
+                    st.rerun()
+        else:
+            st.dataframe(df, hide_index=True, use_container_width=True)
+        
+        # Detailed view section
+        st.markdown("---")
+        st.subheader("Detalhes da Matéria-Prima")
+        
+        selected_rm_code = st.selectbox(
+            "Selecione uma matéria-prima para ver detalhes:",
+            options=[rm.code for rm, _ in results]
+        )
+        
+        selected_rm = next(rm for rm, _ in results if rm.code == selected_rm_code)
+        selected_supplier = next((supplier_name for rm, supplier_name in results if rm.code == selected_rm_code), None)
+        
+        detail_col1, detail_col2, detail_col3 = st.columns(3)
+        
+        with detail_col1:
+            st.markdown("**Identificação**")
+            st.text(f"Código: {selected_rm.code}")
+            st.text(f"Nome Usual: {selected_rm.name_usual}")
+            st.text(f"Nome Químico: {selected_rm.name_chemical or 'N/A'}")
+            st.text(f"Status: {selected_rm.status}")
+        
+        with detail_col2:
+            st.markdown("**Especificações Técnicas**")
+            st.text(f"Unidade Base: {selected_rm.base_unit}")
+            st.text(f"Densidade: {selected_rm.density or 'N/A'}")
+            st.text(f"Fator Conversão: {selected_rm.conv_factor or 'N/A'}")
+            st.text(f"Validade: {selected_rm.shelf_life_days or 'N/A'} dias")
+        
+        with detail_col3:
+            st.markdown("**Informações Comerciais**")
+            st.text(f"Fornecedor: {selected_supplier or 'N/A'}")
+            st.text(f"Preço Base: R$ {selected_rm.base_price:.2f}")
+            st.text(f"Localização: {selected_rm.location or 'N/A'}")
+        
+        # Cost calculator
+        st.markdown("---")
+        st.subheader("🧮 Calculadora de Custos")
+        
+        calc_col1, calc_col2, calc_col3 = st.columns(3)
+        
+        with calc_col1:
+            calc_qty = st.number_input("Quantidade:", min_value=0.0, value=1.0, step=0.1)
+        
+        with calc_col2:
+            calc_unit = st.selectbox("Unidade:", [selected_rm.base_unit, "G", "KG", "ML", "L", "UN"])
+        
+        with calc_col3:
+            st.write("")  # Spacing
+            if st.button("💰 Calcular Custo"):
+                from services.business import material_cost_unit
+                cost = material_cost_unit(selected_rm, calc_qty, calc_unit)
+                st.success(f"Custo: R$ {cost:.2f}")
+    
+    else:
+        st.info("Nenhuma matéria-prima encontrada com os filtros aplicados.")
+
+with tab2:
+    st.subheader("Cadastrar Nova Matéria-Prima")
+    
+    if not has_permission("operator"):
+        st.error("Você não tem permissão para cadastrar matérias-primas.")
+    else:
+        # Create subtabs for Add/Edit/Delete
+        subtab1, subtab2, subtab3 = st.tabs(["➕ Cadastrar", "✏️ Editar", "🗑️ Excluir"])
+        
+        with subtab1:
+            with st.form("new_raw_material_form"):
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    code = st.text_input("Código *", placeholder="MP001")
+                    name_usual = st.text_input("Nome Usual *", placeholder="Nome comercial")
+                    name_chemical = st.text_input("Nome Químico", placeholder="Nome químico/científico")
+                
+                with col2:
+                    # Supplier selection
+                    with Session(engine) as session:
+                        suppliers = session.exec(select(Supplier).where(Supplier.status == "ativo")).all()
+                        supplier_options = ["Nenhum"] + [f"{s.name} (ID: {s.id})" for s in suppliers]
+                    
+                    supplier_selection = st.selectbox("Fornecedor:", supplier_options)
+                    supplier_id = None
+                    if supplier_selection != "Nenhum":
+                        supplier_id = int(supplier_selection.split("ID: ")[1].split(")")[0])
+                    
+                    base_unit = st.selectbox("Unidade Base *", ["KG", "G", "L", "ML", "UN"])
+                    base_price = st.number_input("Preço Base (R$) *", min_value=0.0, value=0.0, step=0.01)
+                
+                submitted = st.form_submit_button("💾 Cadastrar Matéria-Prima", use_container_width=True)
+                
+                if submitted:
+                    if not code or not name_usual:
+                        st.error("Código e Nome Usual são obrigatórios.")
+                    else:
+                        try:
+                            with Session(engine) as session:
+                                # Check if code already exists
+                                existing = session.exec(
+                                    select(RawMaterial).where(RawMaterial.code == code)
+                                ).first()
+                                
+                                if existing:
+                                    st.error("Já existe uma matéria-prima com este código.")
+                                else:
+                                    rm_data = {
+                                        "code": code,
+                                        "name_usual": name_usual,
+                                        "name_chemical": name_chemical if name_chemical else None,
+                                        "supplier_id": supplier_id,
+                                        "base_unit": base_unit,
+                                        "base_price": base_price
+                                    }
+                                    
+                                    new_rm = RawMaterial(**rm_data)
+                                    session.add(new_rm)
+                                    session.commit()
+                                    
+                                    st.success(f"Matéria-prima '{code}' cadastrada com sucesso!")
+                                    st.rerun()
+                        
+                        except Exception as e:
+                            st.error(f"Erro ao cadastrar matéria-prima: {str(e)}")
+        
+        with subtab2:
+            st.markdown("#### Editar Matéria-Prima Existente")
+            
+            # Select material to edit
+            with Session(engine) as session:
+                materials = session.exec(select(RawMaterial)).all()
+                if not materials:
+                    st.info("Nenhuma matéria-prima cadastrada.")
+                else:
+                    material_options = [f"{rm.code} - {rm.name_usual}" for rm in materials]
+                    selected_material_option = st.selectbox("Selecione a matéria-prima para editar:", material_options)
+                    
+                    if selected_material_option:
+                        selected_material = next(rm for rm in materials if f"{rm.code} - {rm.name_usual}" == selected_material_option)
+                        
+                        with st.form("edit_raw_material_form"):
+                            st.info(f"Editando: {selected_material.code}")
+                            
+                            edit_col1, edit_col2 = st.columns(2)
+                            
+                            with edit_col1:
+                                edit_name_usual = st.text_input("Nome Usual *", value=selected_material.name_usual)
+                                edit_name_chemical = st.text_input("Nome Químico", value=selected_material.name_chemical or "")
+                                edit_base_unit = st.selectbox("Unidade Base *", ["KG", "G", "L", "ML", "UN"], 
+                                                            index=["KG", "G", "L", "ML", "UN"].index(selected_material.base_unit))
+                            
+                            with edit_col2:
+                                # Supplier selection
+                                suppliers = session.exec(select(Supplier).where(Supplier.status == "ativo")).all()
+                                supplier_options = ["Nenhum"] + [f"{s.name} (ID: {s.id})" for s in suppliers]
+                                
+                                current_supplier_index = 0
+                                if selected_material.supplier_id:
+                                    current_supplier = session.get(Supplier, selected_material.supplier_id)
+                                    if current_supplier:
+                                        current_supplier_option = f"{current_supplier.name} (ID: {current_supplier.id})"
+                                        if current_supplier_option in supplier_options:
+                                            current_supplier_index = supplier_options.index(current_supplier_option)
+                                
+                                edit_supplier_selection = st.selectbox("Fornecedor:", supplier_options, index=current_supplier_index)
+                                edit_supplier_id = None
+                                if edit_supplier_selection != "Nenhum":
+                                    edit_supplier_id = int(edit_supplier_selection.split("ID: ")[1].split(")")[0])
+                                
+                                edit_base_price = st.number_input("Preço Base (R$) *", min_value=0.0, 
+                                                                value=float(selected_material.base_price), step=0.01)
+                                edit_status = st.selectbox("Status", ["ativo", "inativo"], 
+                                                         index=0 if selected_material.status == "ativo" else 1)
+                            
+                            if st.form_submit_button("💾 Salvar Alterações", use_container_width=True):
+                                if not edit_name_usual:
+                                    st.error("Nome Usual é obrigatório.")
+                                else:
+                                    try:
+                                        selected_material.name_usual = edit_name_usual
+                                        selected_material.name_chemical = edit_name_chemical if edit_name_chemical else None
+                                        selected_material.supplier_id = edit_supplier_id
+                                        selected_material.base_unit = edit_base_unit
+                                        selected_material.base_price = edit_base_price
+                                        selected_material.status = edit_status
+                                        
+                                        session.commit()
+                                        st.success("Matéria-prima atualizada com sucesso!")
+                                        st.rerun()
+                                    
+                                    except Exception as e:
+                                        st.error(f"Erro ao atualizar matéria-prima: {str(e)}")
+        
+        with subtab3:
+            st.markdown("#### Excluir Matéria-Prima")
+            
+            # Select material to delete
+            with Session(engine) as session:
+                materials = session.exec(select(RawMaterial)).all()
+                if not materials:
+                    st.info("Nenhuma matéria-prima cadastrada.")
+                else:
+                    material_options = [f"{rm.code} - {rm.name_usual}" for rm in materials]
+                    selected_delete_option = st.selectbox("Selecione a matéria-prima para excluir:", 
+                                                        [""] + material_options)
+                    
+                    if selected_delete_option:
+                        selected_delete_material = next(rm for rm in materials if f"{rm.code} - {rm.name_usual}" == selected_delete_option)
+                        
+                        st.warning(f"⚠️ Você está prestes a excluir: **{selected_delete_material.code} - {selected_delete_material.name_usual}**")
+                        st.error("Esta ação não pode ser desfeita!")
+                        
+                        # Show material details
+                        detail_col1, detail_col2 = st.columns(2)
+                        with detail_col1:
+                            st.text(f"Código: {selected_delete_material.code}")
+                            st.text(f"Nome Usual: {selected_delete_material.name_usual}")
+                            st.text(f"Unidade: {selected_delete_material.base_unit}")
+                        
+                        with detail_col2:
+                            st.text(f"Preço: R$ {selected_delete_material.base_price:.2f}")
+                            st.text(f"Status: {selected_delete_material.status}")
+                        
+                        # Confirmation
+                        confirm_delete = st.checkbox("Confirmo que desejo excluir esta matéria-prima")
+                        
+                        if confirm_delete:
+                            if st.button("🗑️ CONFIRMAR EXCLUSÃO", type="secondary", use_container_width=True):
+                                try:
+                                    # First, get all stock lots related to this raw material
+                                    from models import StockLot
+                                    related_lots = session.exec(
+                                        select(StockLot).where(
+                                            (StockLot.item_type == "MP") &
+                                            (StockLot.item_id == selected_delete_material.id)
+                                        )
+                                    ).all()
+                                    
+                                    # Delete related stock lots first
+                                    for lot in related_lots:
+                                        session.delete(lot)
+                                    
+                                    # Then delete the raw material
+                                    session.delete(selected_delete_material)
+                                    session.commit()
+                                    
+                                    lot_count = len(related_lots)
+                                    success_msg = f"Matéria-prima '{selected_delete_material.code}' excluída com sucesso!"
+                                    if lot_count > 0:
+                                        success_msg += f" (Também foram removidos {lot_count} lotes de estoque relacionados)"
+                                    
+                                    st.success(success_msg)
+                                    st.rerun()
+                                
+                                except Exception as e:
+                                    st.error(f"Erro ao excluir matéria-prima: {str(e)}")
+                                    st.info("Pode existir dependências desta matéria-prima em formulações ou outros registros.")
+
+with tab3:
+    st.subheader("Importar e Exportar Dados")
+    
+    import_col, export_col = st.columns(2)
+    
+    with import_col:
+        st.markdown("#### 📥 Importar Matérias-Primas")
+        
+        if not has_permission("operator"):
+            st.error("Você não tem permissão para importar dados.")
+        else:
+            # Download template
+            if st.button("📄 Baixar Modelo Excel", use_container_width=True):
+                template = generate_import_template("raw_materials")
+                st.download_button(
+                    label="📥 Download Modelo",
+                    data=template.getvalue(),
+                    file_name="modelo_materias_primas.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+            
+            # File upload
+            uploaded_file = st.file_uploader(
+                "Escolha arquivo Excel (.xlsx)",
+                type=['xlsx'],
+                help="Use o modelo fornecido para garantir a importação correta"
+            )
+            
+            if uploaded_file:
+                if st.button("🚀 Importar Dados", use_container_width=True):
+                    with st.spinner("Importando dados..."):
+                        with Session(engine) as session:
+                            result = import_raw_materials_from_excel(uploaded_file, session)
+                        
+                        if result["success"]:
+                            st.success(f"✅ {result['imported_count']} matérias-primas importadas de {result['total_rows']} linhas!")
+                            
+                            if result["errors"]:
+                                st.warning("⚠️ Alguns registros apresentaram problemas:")
+                                for error in result["errors"]:
+                                    st.text(f"• {error}")
+                        else:
+                            st.error(f"❌ Erro na importação: {result['error']}")
+    
+    with export_col:
+        st.markdown("#### 📤 Exportar Matérias-Primas")
+        
+        if st.button("📊 Exportar para Excel", use_container_width=True):
+            with st.spinner("Gerando arquivo..."):
+                with Session(engine) as session:
+                    excel_data = export_raw_materials_to_excel(session)
+                
+                st.download_button(
+                    label="📥 Download Excel",
+                    data=excel_data.getvalue(),
+                    file_name=f"materias_primas_export_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+
+# Statistics section
+if st.checkbox("📊 Mostrar Estatísticas"):
+    with Session(engine) as session:
+        all_rms = session.exec(select(RawMaterial)).all()
+        
+        if all_rms:
+            stats_col1, stats_col2, stats_col3, stats_col4 = st.columns(4)
+            
+            with stats_col1:
+                st.metric("Total de MPs", len(all_rms))
+            
+            with stats_col2:
+                active_count = sum(1 for rm in all_rms if rm.status == "ativo")
+                st.metric("MPs Ativas", active_count)
+            
+            with stats_col3:
+                avg_price = sum(rm.base_price for rm in all_rms) / len(all_rms)
+                st.metric("Preço Médio", f"R$ {avg_price:.2f}")
+            
+            with stats_col4:
+                with_shelf_life = sum(1 for rm in all_rms if rm.shelf_life_days)
+                if with_shelf_life > 0:
+                    avg_shelf_life = sum(rm.shelf_life_days for rm in all_rms if rm.shelf_life_days) / with_shelf_life
+                    st.metric("Validade Média", f"{avg_shelf_life:.0f} dias")
+                else:
+                    st.metric("Validade Média", "N/A")

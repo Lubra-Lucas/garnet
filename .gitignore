@@ -1,0 +1,19 @@
+# Virtual env
+.venv/
+venv/
+
+# Logs
+logs/
+*.log
+
+# Dados e backups (mantidos só no servidor)
+data/
+backups/
+*.db
+
+# Pycache
+__pycache__/
+*.pyc
+
+# Streamlit
+.streamlit/secrets.toml
