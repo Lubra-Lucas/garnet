@@ -428,8 +428,8 @@ with tab2:
             with col1:
                 name = st.text_input("Nome *", placeholder="Nome do fornecedor")
                 cnpj = st.text_input("CNPJ", placeholder="00.000.000/0000-00")
-                phone = st.text_input("Telefone Comercial", placeholder="(00) 0000-0000")
-                telefone_residencial = st.text_input("Telefone Residencial", placeholder="(00) 0000-0000")
+                phone = st.text_input("Telefone Comercial", placeholder="(11) 99999-9999")
+                telefone_residencial = st.text_input("Telefone Residencial", placeholder="(11) 99999-9999")
                 email = st.text_input("Email", placeholder="contato@fornecedor.com")
                 contact = st.text_input("Pessoa de Contato", placeholder="Nome do contato")
 

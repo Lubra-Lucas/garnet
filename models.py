@@ -19,7 +19,6 @@ class Supplier(SQLModel, table=True):
     name: str
     cnpj: Optional[str] = Field(default=None, index=True)
     phone: Optional[str] = None
-    telefone_residencial: Optional[str] = None
     email: Optional[str] = None
     contact: Optional[str] = None
     address: Optional[str] = None
