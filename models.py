@@ -26,6 +26,7 @@ class Supplier(SQLModel, table=True):
     avg_leadtime_days: Optional[int] = None
     certifications: Optional[str] = None
     certification_file_path: Optional[str] = None  # Path to uploaded certification PDF file
+    teste: Optional[str] = None  # Campo de teste para informações importantes
     notes: Optional[str] = None
     status: str = Field(default="ativo")
     created_at: Optional[datetime] = Field(default_factory=datetime.now)
