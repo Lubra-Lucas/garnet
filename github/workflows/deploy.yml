@@ -1,0 +1,57 @@
+name: Deploy to EC2 (Windows, NSSM)
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create ZIP artifact
+        run: |
+          zip -r release.zip . \
+            -x ".git/*" ".github/*" "__pycache__/*" "venv/*" ".venv/*" "*.log" \
+               "data/*" "backups/*" "*.db"
+
+      - name: Write SSH key
+        run: |
+          echo "${{ secrets.EC2_SSH_KEY }}" > key.pem
+          chmod 600 key.pem
+
+      - name: Upload artifact to EC2
+        run: |
+          scp -i key.pem -o StrictHostKeyChecking=no release.zip \
+            Administrator@${{ secrets.EC2_HOST }}:~/garnet_release.zip
+
+      - name: Deploy on EC2 (stop, unzip, deps, start)
+        run: |
+          ssh -i key.pem -o StrictHostKeyChecking=no Administrator@${{ secrets.EC2_HOST }} 'powershell -NoProfile -ExecutionPolicy Bypass -Command "
+            $ErrorActionPreference = \"Stop\";
+
+            Write-Host \"[1/5] Stop service\";
+            nssm stop Garnet | Out-Null;
+
+            Write-Host \"[2/5] Prepare repo\";
+            New-Item -ItemType Directory -Path C:\garnet\repo -Force | Out-Null;
+            if (Test-Path C:\garnet\repo) { Remove-Item C:\garnet\repo\* -Recurse -Force -ErrorAction SilentlyContinue }
+
+            Write-Host \"[3/5] Expand release\";
+            Expand-Archive -Path $env:USERPROFILE\garnet_release.zip -DestinationPath C:\garnet\repo -Force;
+
+            Write-Host \"[4/5] Install deps in venv\";
+            & C:\garnet\.venv\Scripts\python.exe -m pip install --upgrade pip
+            if (Test-Path C:\garnet\repo\requirements.txt) {
+              & C:\garnet\.venv\Scripts\python.exe -m pip install -r C:\garnet\repo\requirements.txt
+            }
+
+            Write-Host \"[5/5] Start service\";
+            nssm start Garnet | Out-Null;
+
+            Write-Host \"OK: deploy finished\";
+          "'
