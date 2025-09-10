@@ -32,36 +32,36 @@ with tab1:
         <h3 style="margin: 0; color: #2E4A6B; font-weight: 400;">Fornecedores Cadastrados</h3>
     </div>
     """, unsafe_allow_html=True)
-    
+
     # Clean filters layout
     filter_col1, filter_col2, filter_col3 = st.columns([2, 1, 1])
-    
+
     with filter_col1:
         search_term = st.text_input("Buscar por nome ou CNPJ", placeholder="Digite para filtrar...")
-    
+
     with filter_col2:
         status_filter = st.selectbox("Status", ["Todos", "ativo", "inativo"])
-    
+
     with filter_col3:
         st.write("")  # Spacing
         if st.button("Atualizar", use_container_width=True, type="secondary"):
             st.rerun()
-    
+
     # Get suppliers with filters
     with Session(engine) as session:
         query = select(Supplier)
-        
+
         if search_term:
             query = query.where(
                 (Supplier.name.ilike(f"%{search_term}%")) |
                 (Supplier.cnpj.ilike(f"%{search_term}%"))
             )
-        
+
         if status_filter != "Todos":
             query = query.where(Supplier.status == status_filter)
-        
+
         suppliers = session.exec(query.order_by(Supplier.name)).all()
-    
+
     if suppliers:
         # Convert to DataFrame for display
         supplier_data = []
@@ -71,14 +71,15 @@ with tab1:
                 "Nome": supplier.name,
                 "CNPJ": supplier.cnpj,
                 "Telefone": supplier.phone,
+                "Telefone Residencial": supplier.telefone_residencial,
                 "Email": supplier.email,
                 "Contato": supplier.contact,
-                
+
                 "Status": supplier.status
             })
-        
+
         df = pd.DataFrame(supplier_data)
-        
+
         # Display as interactive table
         edited_df = st.data_editor(
             df,
@@ -90,10 +91,14 @@ with tab1:
                     "Status",
                     options=["ativo", "inativo"],
                     required=True
+                ),
+                "Telefone Residencial": st.column_config.TextFieldColumn(
+                    "Telefone Residencial",
+                    help="Telefone residencial do fornecedor"
                 )
             }
         )
-        
+
         # Update button for managers
         if has_permission("manager"):
             if st.button("💾 Salvar Alterações"):
@@ -105,22 +110,23 @@ with tab1:
                             supplier.name = row["Nome"]
                             supplier.cnpj = row["CNPJ"]
                             supplier.phone = row["Telefone"]
+                            supplier.telefone_residencial = row["Telefone Residencial"]
                             supplier.email = row["Email"]
                             supplier.contato = row["Contato"]
                             supplier.status = row["Status"]
-                    
+
                     session.commit()
                     st.success("Alterações salvas com sucesso!")
                     st.rerun()
-        
+
         # Edit and Delete section
         if has_permission("operator"):
             st.markdown("---")
             st.subheader("✏️ Editar/Excluir Fornecedor")
-            
+
             if suppliers:
                 action_col1, action_col2 = st.columns(2)
-                
+
                 with action_col1:
                     st.markdown("**Editar Fornecedor**")
                     edit_supplier_name = st.selectbox(
@@ -128,31 +134,32 @@ with tab1:
                         options=["Selecione..."] + [s.name for s in suppliers],
                         key="edit_supplier"
                     )
-                    
+
                     if edit_supplier_name != "Selecione...":
                         edit_supplier = next(s for s in suppliers if s.name == edit_supplier_name)
-                        
+
                         with st.form("edit_supplier_form"):
                             st.markdown("**Dados do Fornecedor**")
                             edit_col1, edit_col2 = st.columns(2)
-                            
+
                             with edit_col1:
                                 edit_name = st.text_input("Nome *", value=edit_supplier.name)
                                 edit_cnpj = st.text_input("CNPJ", value=edit_supplier.cnpj or "")
-                                edit_phone = st.text_input("Telefone", value=edit_supplier.phone or "")
+                                edit_phone = st.text_input("Telefone Comercial", value=edit_supplier.phone or "")
+                                edit_telefone_residencial = st.text_input("Telefone Residencial", value=edit_supplier.telefone_residencial or "")
                                 edit_email = st.text_input("Email", value=edit_supplier.email or "")
                                 edit_contact = st.text_input("Pessoa de Contato", value=edit_supplier.contact or "")
-                            
+
                             with edit_col2:
                                 edit_address = st.text_area("Endereço", value=edit_supplier.address or "")
                                 edit_certifications = st.text_area("Certificações", value=edit_supplier.certifications or "")
-                                edit_status = st.selectbox("Status", ["ativo", "inativo"], 
+                                edit_status = st.selectbox("Status", ["ativo", "inativo"],
                                                          index=0 if edit_supplier.status == "ativo" else 1)
-                            
+
                             # Show current certification file if exists
                             if edit_supplier.certification_file_path and os.path.exists(edit_supplier.certification_file_path):
                                 st.info(f"📄 Certificação atual: {os.path.basename(edit_supplier.certification_file_path)}")
-                            
+
                             # Upload new certification
                             edit_uploaded_certification = st.file_uploader(
                                 "Substituir certificação (PDF)",
@@ -160,51 +167,51 @@ with tab1:
                                 help="Deixe vazio para manter a certificação atual",
                                 key=f"edit_cert_{edit_supplier.id}"
                             )
-                            
+
                             edit_notes = st.text_area("Observações", value=edit_supplier.notes or "")
-                            
+
                             if st.form_submit_button("💾 Salvar Alterações", use_container_width=True):
                                 if not edit_name:
                                     st.error("Nome do fornecedor é obrigatório.")
                                 else:
                                     try:
                                         certification_file_path = edit_supplier.certification_file_path
-                                        
+
                                         # Handle new certification file upload
                                         if edit_uploaded_certification is not None:
                                             # Create uploads directory if it doesn't exist
                                             upload_dir = "uploads/certifications"
                                             os.makedirs(upload_dir, exist_ok=True)
-                                            
+
                                             # Generate unique filename
                                             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                                             safe_name = "".join(c for c in edit_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
                                             safe_name = safe_name.replace(' ', '_')
                                             filename = f"{safe_name}_{timestamp}_certification.pdf"
                                             file_path = os.path.join(upload_dir, filename)
-                                            
+
                                             # Save the new file
                                             with open(file_path, "wb") as f:
                                                 f.write(edit_uploaded_certification.getbuffer())
-                                            
+
                                             # Delete old file if exists
                                             if certification_file_path and os.path.exists(certification_file_path):
                                                 try:
                                                     os.remove(certification_file_path)
                                                 except:
                                                     pass  # Ignore errors when deleting old file
-                                            
+
                                             certification_file_path = file_path
-                                        
+
                                         with Session(engine) as session:
                                             # Check if name already exists for another supplier
                                             existing = session.exec(
                                                 select(Supplier).where(
-                                                    (Supplier.name == edit_name) & 
+                                                    (Supplier.name == edit_name) &
                                                     (Supplier.id != edit_supplier.id)
                                                 )
                                             ).first()
-                                            
+
                                             if existing:
                                                 st.error("Já existe outro fornecedor com este nome.")
                                             else:
@@ -213,6 +220,7 @@ with tab1:
                                                 supplier_to_update.name = edit_name
                                                 supplier_to_update.cnpj = edit_cnpj if edit_cnpj else None
                                                 supplier_to_update.phone = edit_phone if edit_phone else None
+                                                supplier_to_update.telefone_residencial = edit_telefone_residencial if edit_telefone_residencial else None
                                                 supplier_to_update.email = edit_email if edit_email else None
                                                 supplier_to_update.contact = edit_contact if edit_contact else None
                                                 supplier_to_update.address = edit_address if edit_address else None
@@ -220,17 +228,17 @@ with tab1:
                                                 supplier_to_update.certification_file_path = certification_file_path
                                                 supplier_to_update.notes = edit_notes if edit_notes else None
                                                 supplier_to_update.status = edit_status
-                                                
+
                                                 session.commit()
                                                 success_msg = f"Fornecedor '{edit_name}' atualizado com sucesso!"
                                                 if edit_uploaded_certification is not None:
                                                     success_msg += " Nova certificação anexada."
                                                 st.success(success_msg)
                                                 st.rerun()
-                                    
+
                                     except Exception as e:
                                         st.error(f"Erro ao atualizar fornecedor: {str(e)}")
-                
+
                 with action_col2:
                     st.markdown("**Excluir Fornecedor**")
                     delete_supplier_name = st.selectbox(
@@ -238,21 +246,21 @@ with tab1:
                         options=["Selecione..."] + [s.name for s in suppliers],
                         key="delete_supplier"
                     )
-                    
+
                     if delete_supplier_name != "Selecione...":
                         delete_supplier = next(s for s in suppliers if s.name == delete_supplier_name)
-                        
+
                         st.warning(f"⚠️ Esta ação irá excluir permanentemente o fornecedor **{delete_supplier.name}**")
                         st.info("Digite 'CONFIRMAR' para prosseguir:")
-                        
+
                         confirmation = st.text_input("Confirmação:", key="delete_confirmation")
-                        
+
                         if st.button("🗑️ Excluir Fornecedor", type="secondary"):
                             if confirmation == "CONFIRMAR":
                                 try:
                                     with Session(engine) as session:
                                         # Delete all related records to avoid foreign key constraints
-                                        
+
                                         # Delete purchase orders and their items
                                         from models import PurchaseOrder, PurchaseItem
                                         purchase_orders = session.exec(
@@ -260,7 +268,7 @@ with tab1:
                                                 PurchaseOrder.supplier_id == delete_supplier.id
                                             )
                                         ).all()
-                                        
+
                                         for po in purchase_orders:
                                             # Delete purchase items first
                                             purchase_items = session.exec(
@@ -268,13 +276,13 @@ with tab1:
                                                     PurchaseItem.po_id == po.id
                                                 )
                                             ).all()
-                                            
+
                                             for item in purchase_items:
                                                 session.delete(item)
-                                            
+
                                             # Delete purchase order
                                             session.delete(po)
-                                        
+
                                         # Delete payables
                                         from models import Payable
                                         payables = session.exec(
@@ -282,10 +290,10 @@ with tab1:
                                                 Payable.supplier_id == delete_supplier.id
                                             )
                                         ).all()
-                                        
+
                                         for payable in payables:
                                             session.delete(payable)
-                                        
+
                                         # Delete quote requests and their items
                                         from models import QuoteRequest, QuoteItem
                                         quote_requests = session.exec(
@@ -293,7 +301,7 @@ with tab1:
                                                 QuoteRequest.supplier_id == delete_supplier.id
                                             )
                                         ).all()
-                                        
+
                                         for qr in quote_requests:
                                             # Delete quote items first
                                             quote_items = session.exec(
@@ -301,13 +309,13 @@ with tab1:
                                                     QuoteItem.quote_request_id == qr.id
                                                 )
                                             ).all()
-                                            
+
                                             for item in quote_items:
                                                 session.delete(item)
-                                            
+
                                             # Delete quote request
                                             session.delete(qr)
-                                        
+
                                         # Update raw materials that reference this supplier
                                         from models import RawMaterial
                                         raw_materials = session.exec(
@@ -315,10 +323,10 @@ with tab1:
                                                 RawMaterial.supplier_id == delete_supplier.id
                                             )
                                         ).all()
-                                        
+
                                         for rm in raw_materials:
                                             rm.supplier_id = None  # Remove supplier reference
-                                        
+
                                         # Delete certification file if exists
                                         supplier_to_delete = session.get(Supplier, delete_supplier.id)
                                         if supplier_to_delete:
@@ -327,14 +335,14 @@ with tab1:
                                                     os.remove(supplier_to_delete.certification_file_path)
                                                 except:
                                                     pass  # Ignore errors when deleting file
-                                            
+
                                             session.delete(supplier_to_delete)
                                             session.commit()
-                                            
+
                                             # Build success message
                                             success_msg = f"Fornecedor '{delete_supplier.name}' excluído com sucesso!"
                                             details = []
-                                            
+
                                             if len(purchase_orders) > 0:
                                                 details.append(f"{len(purchase_orders)} pedidos de compra")
                                             if len(payables) > 0:
@@ -343,50 +351,51 @@ with tab1:
                                                 details.append(f"{len(quote_requests)} solicitações de orçamento")
                                             if len(raw_materials) > 0:
                                                 details.append(f"{len(raw_materials)} matérias-primas atualizadas")
-                                            
+
                                             if details:
                                                 success_msg += f" (Também foram removidos: {', '.join(details)})"
-                                            
+
                                             st.success(success_msg)
                                             st.rerun()
-                                
+
                                 except Exception as e:
                                     st.error(f"Erro ao excluir fornecedor: {str(e)}")
                             else:
                                 st.error("Digite 'CONFIRMAR' para excluir o fornecedor.")
-        
+
         # Detailed view section
         st.markdown("---")
         st.subheader("Detalhes do Fornecedor")
-        
+
         if suppliers:
             selected_supplier_name = st.selectbox(
                 "Selecione um fornecedor para ver detalhes:",
                 options=[s.name for s in suppliers]
             )
-            
+
             selected_supplier = next(s for s in suppliers if s.name == selected_supplier_name)
-            
+
             detail_col1, detail_col2 = st.columns(2)
-            
+
             with detail_col1:
                 st.markdown("**Informações Básicas**")
                 st.text(f"Nome: {selected_supplier.name}")
                 st.text(f"CNPJ: {selected_supplier.cnpj or 'N/A'}")
-                st.text(f"Telefone: {selected_supplier.phone or 'N/A'}")
+                st.text(f"Telefone Comercial: {selected_supplier.phone or 'N/A'}")
+                st.text(f"Telefone Residencial: {selected_supplier.telefone_residencial or 'N/A'}")
                 st.text(f"Email: {selected_supplier.email or 'N/A'}")
                 st.text(f"Contato: {selected_supplier.contact or 'N/A'}")
                 st.text(f"Status: {selected_supplier.status}")
-            
+
             with detail_col2:
                 if selected_supplier.address:
                     st.markdown("**Endereço**")
                     st.text(selected_supplier.address)
-                
+
                 if selected_supplier.certifications:
                     st.markdown("**Certificações**")
                     st.text(selected_supplier.certifications)
-                
+
                 if selected_supplier.certification_file_path:
                     st.markdown("**Arquivo de Certificação**")
                     if os.path.exists(selected_supplier.certification_file_path):
@@ -399,34 +408,35 @@ with tab1:
                             )
                     else:
                         st.text("Arquivo não encontrado")
-                
+
                 if selected_supplier.notes:
                     st.markdown("**Observações**")
                     st.text(selected_supplier.notes)
-    
+
     else:
         st.info("Nenhum fornecedor encontrado com os filtros aplicados.")
 
 with tab2:
     st.subheader("Cadastrar Novo Fornecedor")
-    
+
     if not has_permission("operator"):
         st.error("Você não tem permissão para cadastrar fornecedores.")
     else:
         with st.form("new_supplier_form", clear_on_submit=False):
             col1, col2 = st.columns(2)
-            
+
             with col1:
                 name = st.text_input("Nome *", placeholder="Nome do fornecedor")
                 cnpj = st.text_input("CNPJ", placeholder="00.000.000/0000-00")
-                phone = st.text_input("Telefone", placeholder="(00) 0000-0000")
+                phone = st.text_input("Telefone Comercial", placeholder="(00) 0000-0000")
+                telefone_residencial = st.text_input("Telefone Residencial", placeholder="(00) 0000-0000")
                 email = st.text_input("Email", placeholder="contato@fornecedor.com")
                 contact = st.text_input("Pessoa de Contato", placeholder="Nome do contato")
-            
+
             with col2:
                 address = st.text_area("Endereço", placeholder="Endereço completo")
                 certifications = st.text_area("Certificações", placeholder="Descrição das certificações")
-            
+
             # File upload for certifications
             st.markdown("**📄 Anexar Certificações (PDF)**")
             uploaded_certification = st.file_uploader(
@@ -434,43 +444,43 @@ with tab2:
                 type=['pdf'],
                 help="Apenas arquivos PDF são aceitos"
             )
-            
+
             notes = st.text_area("Observações", placeholder="Observações adicionais")
-            
+
             submitted = st.form_submit_button("💾 Cadastrar Fornecedor", use_container_width=True)
-            
+
             if submitted:
                 if not name:
                     st.error("Nome do fornecedor é obrigatório.")
                 else:
                     try:
                         certification_file_path = None
-                        
+
                         # Handle file upload if provided
                         if uploaded_certification is not None:
                             # Create uploads directory if it doesn't exist
                             upload_dir = "uploads/certifications"
                             os.makedirs(upload_dir, exist_ok=True)
-                            
+
                             # Generate unique filename
                             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                             safe_name = "".join(c for c in name if c.isalnum() or c in (' ', '-', '_')).rstrip()
                             safe_name = safe_name.replace(' ', '_')
                             filename = f"{safe_name}_{timestamp}_certification.pdf"
                             file_path = os.path.join(upload_dir, filename)
-                            
+
                             # Save the file
                             with open(file_path, "wb") as f:
                                 f.write(uploaded_certification.getbuffer())
-                            
+
                             certification_file_path = file_path
-                        
+
                         with Session(engine) as session:
                             # Check if supplier already exists
                             existing = session.exec(
                                 select(Supplier).where(Supplier.name == name)
                             ).first()
-                            
+
                             if existing:
                                 st.error("Já existe um fornecedor com este nome.")
                             else:
@@ -478,6 +488,7 @@ with tab2:
                                     "name": name,
                                     "cnpj": cnpj if cnpj else None,
                                     "phone": phone if phone else None,
+                                    "telefone_residencial": telefone_residencial if telefone_residencial else None,
                                     "email": email if email else None,
                                     "contact": contact if contact else None,
                                     "address": address if address else None,
@@ -485,28 +496,28 @@ with tab2:
                                     "certification_file_path": certification_file_path,
                                     "notes": notes if notes else None
                                 }
-                                
+
                                 new_supplier = Supplier(**supplier_data)
                                 session.add(new_supplier)
                                 session.commit()
-                                
+
                                 success_msg = f"Fornecedor '{name}' cadastrado com sucesso!"
                                 if certification_file_path:
                                     success_msg += " Certificação anexada."
                                 st.success(success_msg)
                                 st.rerun()
-                    
+
                     except Exception as e:
                         st.error(f"Erro ao cadastrar fornecedor: {str(e)}")
 
 with tab3:
     st.subheader("Importar e Exportar Dados")
-    
+
     import_col, export_col = st.columns(2)
-    
+
     with import_col:
         st.markdown("#### 📥 Importar Fornecedores")
-        
+
         if not has_permission("operator"):
             st.error("Você não tem permissão para importar dados.")
         else:
@@ -519,50 +530,50 @@ with tab3:
                     file_name="modelo_fornecedores.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
-            
+
             # File upload
             uploaded_file = st.file_uploader(
                 "Escolha arquivo Excel (.xlsx)",
                 type=['xlsx'],
                 help="Use o modelo fornecido para garantir a importação correta"
             )
-            
+
             if uploaded_file:
                 if st.button("🚀 Importar Dados", use_container_width=True):
                     with st.spinner("Importando dados..."):
                         with Session(engine) as session:
                             result = import_suppliers_from_excel(uploaded_file, session)
-                        
+
                         if result["success"]:
                             st.success(f"✅ {result['imported_count']} fornecedores importados de {result['total_rows']} linhas!")
-                            
+
                             if result["errors"]:
                                 st.warning("⚠️ Alguns registros apresentaram problemas:")
                                 for error in result["errors"]:
                                     st.text(f"• {error}")
                         else:
                             st.error(f"❌ Erro na importação: {result['error']}")
-    
+
     with export_col:
         st.markdown("#### 📤 Exportar Fornecedores")
-        
+
         if st.button("📊 Exportar para Excel", use_container_width=True):
             with st.spinner("Gerando arquivo..."):
                 with Session(engine) as session:
                     excel_data = export_suppliers_to_excel(session)
-                
+
                 st.download_button(
                     label="📥 Download Excel",
                     data=excel_data.getvalue(),
                     file_name=f"fornecedores_export_{pd.Timestamp.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
-        
+
         # CSV export option
         if st.button("📄 Exportar para CSV", use_container_width=True):
             with Session(engine) as session:
                 suppliers = session.exec(select(Supplier)).all()
-                
+
                 if suppliers:
                     data = []
                     for supplier in suppliers:
@@ -570,14 +581,15 @@ with tab3:
                             "Nome": supplier.name,
                             "CNPJ": supplier.cnpj,
                             "Telefone": supplier.phone,
+                            "Telefone Residencial": supplier.telefone_residencial,
                             "Email": supplier.email,
                             "Contato": supplier.contact,
                             "Status": supplier.status
                         })
-                    
+
                     df = pd.DataFrame(data)
                     csv_data = df.to_csv(index=False)
-                    
+
                     st.download_button(
                         label="📥 Download CSV",
                         data=csv_data,
@@ -591,17 +603,17 @@ with tab3:
 if st.checkbox("📊 Mostrar Estatísticas"):
     with Session(engine) as session:
         total_suppliers = session.exec(select(Supplier)).all()
-        
+
         if total_suppliers:
             stats_col1, stats_col2, stats_col3 = st.columns(3)
-            
+
             with stats_col1:
                 st.metric("Total de Fornecedores", len(total_suppliers))
-            
+
             with stats_col2:
                 active_count = sum(1 for s in total_suppliers if s.status == "ativo")
                 st.metric("Fornecedores Ativos", active_count)
-            
+
             with stats_col3:
                 with_leadtime = sum(1 for s in total_suppliers if s.avg_leadtime_days)
                 avg_leadtime = sum(s.avg_leadtime_days for s in total_suppliers if s.avg_leadtime_days) / max(with_leadtime, 1)
