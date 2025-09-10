@@ -73,7 +73,7 @@ with tab1:
                 "Telefone": supplier.phone,
                 "Email": supplier.email,
                 "Contato": supplier.contact,
-                "TESTE": supplier.teste,
+                
                 "Status": supplier.status
             })
         
@@ -106,8 +106,7 @@ with tab1:
                             supplier.cnpj = row["CNPJ"]
                             supplier.phone = row["Telefone"]
                             supplier.email = row["Email"]
-                            supplier.contact = row["Contato"]
-                            supplier.teste = row["TESTE"]
+                            supplier.contato = row["Contato"]
                             supplier.status = row["Status"]
                     
                     session.commit()
@@ -147,7 +146,6 @@ with tab1:
                             with edit_col2:
                                 edit_address = st.text_area("Endereço", value=edit_supplier.address or "")
                                 edit_certifications = st.text_area("Certificações", value=edit_supplier.certifications or "")
-                                edit_teste = st.text_input("TESTE", value=edit_supplier.teste or "")
                                 edit_status = st.selectbox("Status", ["ativo", "inativo"], 
                                                          index=0 if edit_supplier.status == "ativo" else 1)
                             
@@ -220,7 +218,6 @@ with tab1:
                                                 supplier_to_update.address = edit_address if edit_address else None
                                                 supplier_to_update.certifications = edit_certifications if edit_certifications else None
                                                 supplier_to_update.certification_file_path = certification_file_path
-                                                supplier_to_update.teste = edit_teste if edit_teste else None
                                                 supplier_to_update.notes = edit_notes if edit_notes else None
                                                 supplier_to_update.status = edit_status
                                                 
@@ -390,10 +387,6 @@ with tab1:
                     st.markdown("**Certificações**")
                     st.text(selected_supplier.certifications)
                 
-                if selected_supplier.teste:
-                    st.markdown("**TESTE**")
-                    st.text(selected_supplier.teste)
-                
                 if selected_supplier.certification_file_path:
                     st.markdown("**Arquivo de Certificação**")
                     if os.path.exists(selected_supplier.certification_file_path):
@@ -490,7 +483,6 @@ with tab2:
                                     "address": address if address else None,
                                     "certifications": certifications if certifications else None,
                                     "certification_file_path": certification_file_path,
-                                    "teste": teste if teste else None,
                                     "notes": notes if notes else None
                                 }
                                 
