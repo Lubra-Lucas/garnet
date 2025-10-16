@@ -66,7 +66,7 @@ with tab1:
         st.markdown("---")
         st.subheader("Detalhes da Formulação")
 
-        if results and has_permission("manager"):
+        if results and has_permission("operator"):
             selected_id = st.selectbox(
                 "Selecione uma formulação:",
                 options=[f["ID"] for f in formulation_data],
