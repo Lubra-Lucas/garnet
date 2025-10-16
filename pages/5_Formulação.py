@@ -66,7 +66,7 @@ with tab1:
         st.markdown("---")
         st.subheader("Detalhes da Formulação")
 
-        if results:
+        if results and has_permission("manager"):
             selected_id = st.selectbox(
                 "Selecione uma formulação:",
                 options=[f["ID"] for f in formulation_data],
@@ -141,7 +141,7 @@ with tab1:
                         elif item.uom == "ML":
                             item_qty_in_grams = item.qty * 1  # Assuming density ~1 g/ml
                         # For "UN" keep original value (this might need adjustment based on actual unit)
-                        
+
                         # Calculate percentage based on standard batch weight
                         percentage_calc = (item_qty_in_grams / product.std_batch_weight * 100) if product.std_batch_weight > 0 else 0
 
@@ -187,7 +187,7 @@ with tab1:
                         with cost_col3:
                             cost_per_gram = total_cost / product.std_batch_weight
                             st.metric("Custo por Grama", f"R$ {cost_per_gram:.4f}")
-                
+
                 # Formulation management actions
                 if has_permission("operator"):
                     st.markdown("---")
@@ -243,7 +243,7 @@ with tab1:
 
                         # Show current formula items for editing
                         st.markdown("**Composição da Formulação**")
-                        
+
                         # Calculate current batch weight
                         current_batch_weight = 0.0
                         for item in st.session_state[f"edit_formula_items_{selected_id}"]:
@@ -256,7 +256,7 @@ with tab1:
                                 elif item["uom"] == "ML":
                                     qty_in_grams *= 1
                                 current_batch_weight += qty_in_grams
-                        
+
                         st.info(f"📊 Lote padrão calculado: {current_batch_weight:.1f} g")
 
                         # Display editable formula items
@@ -266,7 +266,7 @@ with tab1:
                             with item_col1:
                                 rm_options = [f"{rm.code} - {rm.name_usual}" for rm in all_raw_materials]
                                 current_rm_option = f"{item['rm_code']} - {item['rm_name']}"
-                                
+
                                 # Find current selection index
                                 try:
                                     current_index = rm_options.index(current_rm_option) + 1  # +1 because of "Selecione..."
@@ -279,7 +279,7 @@ with tab1:
                                     index=current_index,
                                     key=f"edit_rm_{selected_id}_{i}"
                                 )
-                                
+
                                 if rm_selection != "Selecione...":
                                     selected_rm = all_raw_materials[rm_options.index(rm_selection)]
                                     item["rm_id"] = selected_rm.id
@@ -360,13 +360,13 @@ with tab1:
                                             formulation_to_update = session.get(Formulation, selected_id)
                                             if formulation_to_update:
                                                 formulation_to_update.version = edit_version
-                                                
+
                                                 # Se mudando para "Aprovado/Em Uso", automaticamente aprovar
                                                 if edit_state == "Aprovado/Em Uso" and formulation_to_update.state != "Aprovado/Em Uso":
                                                     formulation_to_update.approved_by = user["name"]
                                                     from datetime import datetime
                                                     formulation_to_update.approved_at = datetime.now()
-                                                
+
                                                 formulation_to_update.state = edit_state
 
                                                 # Delete all existing formula items
@@ -388,7 +388,7 @@ with tab1:
                                                             percent=item["percent"] if item["percent"] > 0 else None
                                                         )
                                                         session.add(formula_item)
-                                                        
+
                                                         # Convert quantity to grams for batch weight calculation
                                                         qty_in_grams = item["qty"]
                                                         if item["uom"] == "KG":
@@ -397,7 +397,7 @@ with tab1:
                                                             qty_in_grams *= 1000
                                                         elif item["uom"] == "ML":
                                                             qty_in_grams *= 1
-                                                        
+
                                                         total_batch_weight += qty_in_grams
 
                                                 # Update product's standard batch weight
@@ -406,12 +406,12 @@ with tab1:
                                                     product_to_update.std_batch_weight = total_batch_weight
 
                                                 session.commit()
-                                                
+
                                                 if edit_state == "Aprovado/Em Uso":
                                                     st.success("Formulação atualizada e automaticamente aprovada!")
                                                 else:
                                                     st.success("Formulação atualizada com sucesso!")
-                                                
+
                                                 # Clear session state
                                                 del st.session_state[f"edit_formula_items_{selected_id}"]
                                                 st.session_state.show_edit_formulation = False
@@ -444,10 +444,10 @@ with tab1:
                                         formula_items = session.exec(
                                             select(FormulaItem).where(FormulaItem.formulation_id == selected_id)
                                         ).all()
-                                        
+
                                         for item in formula_items:
                                             session.delete(item)
-                                        
+
                                         # Delete formulation
                                         formulation_to_delete = session.get(Formulation, selected_id)
                                         if formulation_to_delete:
@@ -464,9 +464,11 @@ with tab1:
                             if st.button("❌ Cancelar", use_container_width=True):
                                 st.session_state.show_delete_formulation = False
                                 st.rerun()
-                
+
                 else:
                     st.info("Esta formulação não possui itens cadastrados.")
+        else:
+            st.info("Você não tem permissão para visualizar os detalhes das formulações.")
     else:
         st.info("Nenhuma formulação cadastrada.")
 
@@ -509,7 +511,7 @@ with tab2:
                     # Dynamic formula items
                     if "formula_items" not in st.session_state:
                         st.session_state.formula_items = [{"rm_id": None, "qty": 0.0, "uom": "G", "percent": 0.0}]
-                    
+
                     # Calculate and display current batch weight
                     current_batch_weight = 0.0
                     for item in st.session_state.formula_items:
@@ -522,7 +524,7 @@ with tab2:
                             elif item["uom"] == "ML":
                                 qty_in_grams *= 1
                             current_batch_weight += qty_in_grams
-                    
+
                     st.info(f"📊 Lote padrão calculado: {current_batch_weight:.1f} g")
 
                     # Display formula items
@@ -586,13 +588,13 @@ with tab2:
                                     version=version,
                                     state=state
                                 )
-                                
+
                                 # Se criando com estado "Aprovado/Em Uso", automaticamente aprovar
                                 if state == "Aprovado/Em Uso":
                                     new_formulation.approved_by = user["name"]
                                     from datetime import datetime
                                     new_formulation.approved_at = datetime.now()
-                                
+
                                 session.add(new_formulation)
                                 session.flush()  # Get the ID
 
@@ -608,7 +610,7 @@ with tab2:
                                             percent=item["percent"] if item["percent"] > 0 else None
                                         )
                                         session.add(formula_item)
-                                        
+
                                         # Convert quantity to grams for batch weight calculation
                                         qty_in_grams = item["qty"]
                                         if item["uom"] == "KG":
@@ -618,7 +620,7 @@ with tab2:
                                         elif item["uom"] == "ML":
                                             qty_in_grams *= 1  # Assuming density ~1 g/ml
                                         # For "UN" we'll keep the original value
-                                        
+
                                         total_batch_weight += qty_in_grams
 
                                 # Update product's standard batch weight
