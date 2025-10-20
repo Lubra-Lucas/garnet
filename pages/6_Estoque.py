@@ -119,13 +119,13 @@ with tab1:
             rm.name_usual,
             rm.base_unit,
             rm.base_price,
-            COALESCE(SUM(CASE WHEN sl.status = 'Aprovado' THEN sl.qty ELSE 0 END), 0) as total_approved,
-            COALESCE(SUM(CASE WHEN sl.status = 'Quarentena' THEN sl.qty ELSE 0 END), 0) as total_quarantine,
-            COALESCE(SUM(sl.qty), 0) as total_qty
+            COALESCE(SUM(sl.qty), 0) as total_qty,
+            s.name as supplier_name
         FROM rawmaterial rm
         LEFT JOIN stocklot sl ON rm.id = sl.item_id AND sl.item_type = 'MP'
+        LEFT JOIN supplier s ON rm.supplier_id = s.id
         WHERE rm.status = 'ativo'
-        GROUP BY rm.id, rm.code, rm.name_usual, rm.base_unit, rm.base_price
+        GROUP BY rm.id, rm.code, rm.name_usual, rm.base_unit, rm.base_price, s.name
         ORDER BY rm.code
         """)
 
@@ -133,25 +133,23 @@ with tab1:
 
         if result:
             rm_inventory_data = []
-            total_approved_value = 0
+            total_stock_value = 0
 
             for row in result:
-                approved_qty = row[5]  # total_approved
-                quarantine_qty = row[6]  # total_quarantine
-                total_qty = row[7]  # total_qty
+                total_qty = row[5]  # total_qty
                 base_price = row[4]  # base_price
-                approved_value = approved_qty * base_price
-                total_approved_value += approved_value
+                supplier_name = row[6]  # supplier_name
+                stock_value = total_qty * base_price
+                total_stock_value += stock_value
 
                 rm_inventory_data.append({
                     "Código": row[1],  # code
                     "Matéria-Prima": row[2],  # name_usual
+                    "Fornecedor": supplier_name or "Não informado",
                     "Unidade": row[3],  # base_unit
-                    "Qty Aprovada": f"{approved_qty:.1f}",
-                    "Qty Quarentena": f"{quarantine_qty:.1f}",
-                    "Qty Total": f"{total_qty:.1f}",
+                    "Quantidade": f"{total_qty:.1f}",
                     "Preço Unit.": f"R$ {base_price:.2f}",
-                    "Valor Aprovado": f"R$ {approved_value:.2f}"
+                    "Valor Total": f"R$ {stock_value:.2f}"
                 })
 
             rm_inventory_df = pd.DataFrame(rm_inventory_data)
@@ -161,19 +159,19 @@ with tab1:
             with summary_col1:
                 st.metric("Total de Matérias-Primas", len(rm_inventory_data))
             with summary_col2:
-                active_stock = len([row for row in rm_inventory_data if float(row["Qty Aprovada"]) > 0])
-                st.metric("Com Estoque Aprovado", active_stock)
+                active_stock = len([row for row in rm_inventory_data if float(row["Quantidade"]) > 0])
+                st.metric("Com Estoque Disponível", active_stock)
             with summary_col3:
-                st.metric("Valor Total Aprovado", f"R$ {total_approved_value:,.2f}")
+                st.metric("Valor Total em Estoque", f"R$ {total_stock_value:,.2f}")
 
             # Style the dataframe to highlight stock levels
             def highlight_stock(row):
-                approved_qty = float(row["Qty Aprovada"])
-                if approved_qty == 0:
+                qty = float(row["Quantidade"])
+                if qty == 0:
                     return ['background-color: #ffebee'] * len(row)  # Light red for zero stock
-                elif approved_qty < 10:  # Low stock threshold
+                elif qty < 10:  # Low stock threshold
                     return ['background-color: #fff3e0'] * len(row)  # Light orange for low stock
-                elif approved_qty > 100:  # High stock
+                elif qty > 100:  # High stock
                     return ['background-color: #e8f5e8'] * len(row)  # Light green for high stock
                 else:
                     return [''] * len(row)
@@ -185,7 +183,7 @@ with tab1:
             st.markdown("**Legenda de Cores:**")
             legend_col1, legend_col2, legend_col3 = st.columns(3)
             with legend_col1:
-                st.markdown("🔴 **Vermelho**: Sem estoque aprovado")
+                st.markdown("🔴 **Vermelho**: Sem estoque")
             with legend_col2:
                 st.markdown("🟡 **Laranja**: Estoque baixo (< 10 unidades)")
             with legend_col3:
@@ -292,8 +290,8 @@ with tab2:
                     entrada_validade = st.date_input("Data de Validade", value=None, key="entrada_validade")
 
                 with entrada_col4:
-                    entrada_status = st.selectbox("Status *", ["Quarentena", "Aprovado"], index=0, key="entrada_status")
                     st.info(f"💰 Custo automático: R$ {selected_rm.base_price:.2f}/{selected_rm.base_unit}")
+                    st.caption("Status: Aprovado (automático)")
 
                 entrada_localizacao = st.text_input("Localização", placeholder="Ex: Almoxarifado A - Prateleira 1", key="entrada_local")
 
@@ -318,9 +316,8 @@ with tab2:
                                 # Add quantity to existing lot
                                 old_qty = existing_lot.qty
                                 existing_lot.qty += entrada_qty
-                                # Update status if needed (keep the better status)
-                                if entrada_status == "Aprovado" and existing_lot.status != "Aprovado":
-                                    existing_lot.status = entrada_status
+                                # Always set status to Aprovado
+                                existing_lot.status = "Aprovado"
                                 # Update other fields if provided
                                 if entrada_validade:
                                     existing_lot.expiry = entrada_validade
@@ -341,7 +338,7 @@ with tab2:
                                     qty=entrada_qty,
                                     uom=entrada_uom,
                                     expiry=entrada_validade,
-                                    status=entrada_status,
+                                    status="Aprovado",  # Always approved
                                     avg_cost=selected_rm.base_price,  # Always use current price from raw material
                                     location=entrada_localizacao if entrada_localizacao else None
                                 )
