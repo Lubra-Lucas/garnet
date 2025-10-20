@@ -260,6 +260,98 @@ with tab1:
 with tab2:
     st.subheader("Estoque de Matérias-Primas")
 
+    # Add manual stock withdrawal section
+    if has_permission("operator"):
+        st.markdown("---")
+        st.markdown("### ➖ **Dar Baixa Manual no Estoque**")
+        st.info("💡 Use esta funcionalidade para registrar consumos, perdas, ajustes ou saídas de estoque que não sejam por ordem de produção.")
+
+        with st.form("baixa_estoque_form", clear_on_submit=True):
+            baixa_col1, baixa_col2, baixa_col3 = st.columns(3)
+
+            with baixa_col1:
+                # Get all stock lots with available quantity
+                with Session(engine) as session:
+                    available_lots = session.exec(
+                        select(StockLot, RawMaterial.code, RawMaterial.name_usual)
+                        .join(RawMaterial, StockLot.item_id == RawMaterial.id)
+                        .where(StockLot.item_type == "MP")
+                        .where(StockLot.qty > 0)
+                        .where(StockLot.status == "Aprovado")
+                        .where(RawMaterial.status == "ativo")
+                        .order_by(RawMaterial.code)
+                    ).all()
+
+                if not available_lots:
+                    st.warning("⚠️ Nenhum lote disponível para baixa.")
+                else:
+                    lot_options = [f"{rm_code} - {rm_name} | Lote: {lot.lot_code} | Disponível: {lot.qty:.2f} {lot.uom}" 
+                                   for lot, rm_code, rm_name in available_lots]
+                    selected_lot_option = st.selectbox("Selecionar Lote *", lot_options, key="baixa_lot")
+                    selected_lot_index = lot_options.index(selected_lot_option)
+                    selected_lot_data = available_lots[selected_lot_index]
+
+            with baixa_col2:
+                if available_lots:
+                    max_qty = selected_lot_data[0].qty
+                    baixa_qty = st.number_input(
+                        f"Quantidade a Dar Baixa (máx: {max_qty:.2f}) *", 
+                        min_value=0.01, 
+                        max_value=float(max_qty),
+                        value=min(1.0, float(max_qty)), 
+                        step=0.01, 
+                        key="baixa_qty"
+                    )
+                    st.caption(f"Unidade: {selected_lot_data[0].uom}")
+
+            with baixa_col3:
+                if available_lots:
+                    baixa_motivo = st.selectbox(
+                        "Motivo da Baixa *",
+                        ["Consumo Interno", "Perda/Quebra", "Ajuste de Inventário", "Transferência", "Vencimento", "Outros"],
+                        key="baixa_motivo"
+                    )
+
+            if available_lots:
+                baixa_observacoes = st.text_area(
+                    "Observações",
+                    placeholder="Descreva o motivo da baixa em detalhes...",
+                    key="baixa_obs"
+                )
+
+                submitted_baixa = st.form_submit_button("🗑️ **Confirmar Baixa**", use_container_width=True, type="primary")
+
+                if submitted_baixa:
+                    if baixa_qty <= 0:
+                        st.error("A quantidade deve ser maior que zero.")
+                    else:
+                        with Session(engine) as session:
+                            lot_to_update = session.get(StockLot, selected_lot_data[0].id)
+                            
+                            if lot_to_update and lot_to_update.qty >= baixa_qty:
+                                old_qty = lot_to_update.qty
+                                lot_to_update.qty -= baixa_qty
+                                
+                                session.commit()
+                                
+                                # Success message with details
+                                st.success(f"✅ Baixa registrada com sucesso!")
+                                st.info(f"""
+                                **Detalhes da Baixa:**
+                                - **Material:** {selected_lot_data[1]} - {selected_lot_data[2]}
+                                - **Lote:** {lot_to_update.lot_code}
+                                - **Quantidade Baixada:** {baixa_qty:.2f} {lot_to_update.uom}
+                                - **Quantidade Anterior:** {old_qty:.2f} {lot_to_update.uom}
+                                - **Quantidade Atual:** {lot_to_update.qty:.2f} {lot_to_update.uom}
+                                - **Motivo:** {baixa_motivo}
+                                {f"- **Observações:** {baixa_observacoes}" if baixa_observacoes else ""}
+                                """)
+                                st.rerun()
+                            else:
+                                st.error("Erro: Quantidade indisponível ou lote não encontrado.")
+
+        st.markdown("---")
+
     # Add stock entry section at the top
     if has_permission("operator"):
         st.markdown("---")
