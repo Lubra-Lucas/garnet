@@ -190,6 +190,23 @@ class QuoteItem(SQLModel, table=True):
     lead_time_days: Optional[int] = None
     uom: str = Field(default="KG")
 
+class StockMovement(SQLModel, table=True):
+    """Stock movement tracking for entries and withdrawals"""
+    id: Optional[int] = Field(default=None, primary_key=True)
+    movement_type: str  # Entrada, Saída
+    item_type: str  # MP (Raw Material) or PA (Finished Product)
+    item_id: int  # ID of RawMaterial or Product
+    item_code: str  # Code of the item for quick reference
+    item_name: str  # Name of the item for quick reference
+    lot_code: str
+    qty: float
+    uom: str
+    reason: str  # Entrada Manual, Baixa Manual, Produção, Ajuste de Inventário, etc.
+    notes: Optional[str] = None
+    user: Optional[str] = None  # User who made the movement
+    movement_date: datetime = Field(default_factory=datetime.now)
+    created_at: Optional[datetime] = Field(default_factory=datetime.now)
+
 class QualityTest(SQLModel, table=True):
     """Quality control test results"""
     id: Optional[int] = Field(default=None, primary_key=True)

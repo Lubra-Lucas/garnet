@@ -3,7 +3,7 @@ import streamlit as st
 from auth import require_login, has_permission
 from sqlmodel import Session, select, text
 from db import engine
-from models import StockLot, RawMaterial, Product, Supplier, ProductionOrder
+from models import StockLot, RawMaterial, Product, Supplier, ProductionOrder, StockMovement
 from services.business import fefo_pick, calculate_stock_value, check_expiring_lots, mrp_requirements
 import pandas as pd
 from datetime import date, timedelta, datetime
@@ -22,7 +22,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Clean tabs without icons
-tab1, tab2, tab3, tab4, tab5 = st.tabs(["Visão Geral", "Matérias-Primas", "Produtos Acabados", "Alertas", "Histórico de Consumo"])
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Visão Geral", "Matérias-Primas", "Produtos Acabados", "Alertas", "Histórico de Consumo", "Histórico de Movimentação"])
 
 with tab1:
     st.subheader("Visão Geral do Estoque")
@@ -192,70 +192,7 @@ with tab1:
         else:
             st.info("Nenhuma matéria-prima cadastrada encontrada.")
 
-    # Recent movements - only valid lots
-    st.markdown("---")
-    st.subheader("🔄 Movimentações Recentes")
-
-    with Session(engine) as session:
-        # Get recent MP lots with valid raw materials
-        recent_mp_lots = session.exec(
-            select(StockLot, RawMaterial.code, RawMaterial.name_usual)
-            .join(RawMaterial, StockLot.item_id == RawMaterial.id)
-            .where(StockLot.item_type == "MP")
-            .where(RawMaterial.status == "ativo")
-            .order_by(StockLot.created_at.desc())
-            .limit(5)
-        ).all()
-        
-        # Get recent PA lots with valid products
-        recent_pa_lots = session.exec(
-            select(StockLot, Product.code, Product.name)
-            .join(Product, StockLot.item_id == Product.id)
-            .where(StockLot.item_type == "PA")
-            .where(Product.status == "ativo")
-            .order_by(StockLot.created_at.desc())
-            .limit(5)
-        ).all()
-
-        if recent_mp_lots or recent_pa_lots:
-            movements_data = []
-            
-            # Process MP lots
-            for lot, rm_code, rm_name in recent_mp_lots:
-                movements_data.append({
-                    "Data": lot.created_at.strftime("%d/%m/%Y %H:%M") if lot.created_at else "N/A",
-                    "Tipo": "MP",
-                    "Item": f"{rm_code} - {rm_name}",
-                    "Lote": lot.lot_code,
-                    "Quantidade": f"{lot.qty} {lot.uom}",
-                    "Status": lot.status,
-                    "Created": lot.created_at or datetime.min
-                })
-            
-            # Process PA lots
-            for lot, product_code, product_name in recent_pa_lots:
-                movements_data.append({
-                    "Data": lot.created_at.strftime("%d/%m/%Y %H:%M") if lot.created_at else "N/A",
-                    "Tipo": "PA",
-                    "Item": f"{product_code} - {product_name}",
-                    "Lote": lot.lot_code,
-                    "Quantidade": f"{lot.qty} {lot.uom}",
-                    "Status": lot.status,
-                    "Created": lot.created_at or datetime.min
-                })
-            
-            # Sort by creation date and limit to 10 most recent
-            movements_data.sort(key=lambda x: x["Created"], reverse=True)
-            movements_data = movements_data[:10]
-            
-            # Remove the Created field before displaying
-            for movement in movements_data:
-                del movement["Created"]
-
-            movements_df = pd.DataFrame(movements_data)
-            st.dataframe(movements_df, hide_index=True, use_container_width=True)
-        else:
-            st.info("Nenhuma movimentação recente encontrada.")
+    
 
 with tab2:
     st.subheader("Estoque de Matérias-Primas")
@@ -332,6 +269,23 @@ with tab2:
                                 old_qty = lot_to_update.qty
                                 lot_to_update.qty -= baixa_qty
                                 
+                                session.commit()
+                                
+                                # Register movement
+                                movement = StockMovement(
+                                    movement_type="Saída",
+                                    item_type="MP",
+                                    item_id=selected_lot_data[2].id if hasattr(selected_lot_data[2], 'id') else lot_to_update.item_id,
+                                    item_code=selected_lot_data[1],
+                                    item_name=selected_lot_data[2],
+                                    lot_code=lot_to_update.lot_code,
+                                    qty=baixa_qty,
+                                    uom=lot_to_update.uom,
+                                    reason=baixa_motivo,
+                                    notes=baixa_observacoes if baixa_observacoes else None,
+                                    user=st.session_state.get("user", {}).get("name", "Sistema")
+                                )
+                                session.add(movement)
                                 session.commit()
                                 
                                 # Success message with details
@@ -419,6 +373,24 @@ with tab2:
                                 existing_lot.avg_cost = selected_rm.base_price
 
                                 session.commit()
+                                
+                                # Register movement
+                                movement = StockMovement(
+                                    movement_type="Entrada",
+                                    item_type="MP",
+                                    item_id=selected_rm.id,
+                                    item_code=selected_rm.code,
+                                    item_name=selected_rm.name_usual,
+                                    lot_code=entrada_lote,
+                                    qty=entrada_qty,
+                                    uom=entrada_uom,
+                                    reason="Entrada Manual",
+                                    notes=f"Adicionado ao lote existente. Quantidade anterior: {old_qty}",
+                                    user=st.session_state.get("user", {}).get("name", "Sistema")
+                                )
+                                session.add(movement)
+                                session.commit()
+                                
                                 st.success(f"✅ Quantidade adicionada ao lote '{entrada_lote}'! Quantidade anterior: {old_qty} {existing_lot.uom} → Nova quantidade: {existing_lot.qty} {existing_lot.uom}")
                                 st.rerun()
                             else:
@@ -436,6 +408,23 @@ with tab2:
                                 )
 
                                 session.add(new_lot)
+                                session.commit()
+                                
+                                # Register movement
+                                movement = StockMovement(
+                                    movement_type="Entrada",
+                                    item_type="MP",
+                                    item_id=selected_rm.id,
+                                    item_code=selected_rm.code,
+                                    item_name=selected_rm.name_usual,
+                                    lot_code=entrada_lote,
+                                    qty=entrada_qty,
+                                    uom=entrada_uom,
+                                    reason="Entrada Manual",
+                                    notes=f"Localização: {entrada_localizacao}" if entrada_localizacao else None,
+                                    user=st.session_state.get("user", {}).get("name", "Sistema")
+                                )
+                                session.add(movement)
                                 session.commit()
 
                                 st.success(f"✅ Entrada registrada com sucesso! Novo lote '{entrada_lote}' - {entrada_qty} {entrada_uom} de {selected_rm.name_usual}")
@@ -1005,3 +994,122 @@ with tab5:
                         file_name=f"historico_consumo_{date_from.strftime('%Y%m%d')}_{date_to.strftime('%Y%m%d')}.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     )
+
+with tab6:
+    st.subheader("📜 Histórico de Movimentação")
+    st.info("💡 Este histórico registra todas as entradas e saídas de estoque, incluindo movimentações manuais e automáticas.")
+
+    # Filters
+    filter_col1, filter_col2, filter_col3, filter_col4 = st.columns(4)
+
+    with filter_col1:
+        movement_date_from = st.date_input("Data Inicial:", value=date.today() - timedelta(days=30), key="mov_date_from")
+
+    with filter_col2:
+        movement_date_to = st.date_input("Data Final:", value=date.today(), key="mov_date_to")
+
+    with filter_col3:
+        movement_type_filter = st.selectbox("Tipo de Movimentação:", ["Todos", "Entrada", "Saída"], key="mov_type")
+
+    with filter_col4:
+        item_type_filter = st.selectbox("Tipo de Item:", ["Todos", "MP", "PA"], key="item_type")
+
+    # Search filter
+    search_filter = st.text_input("🔍 Buscar por código, nome ou lote:", placeholder="Digite para filtrar...", key="mov_search")
+
+    # Get movements from database
+    with Session(engine) as session:
+        query = select(StockMovement).where(
+            StockMovement.movement_date >= datetime.combine(movement_date_from, datetime.min.time())
+        ).where(
+            StockMovement.movement_date <= datetime.combine(movement_date_to, datetime.max.time())
+        )
+
+        if movement_type_filter != "Todos":
+            query = query.where(StockMovement.movement_type == movement_type_filter)
+
+        if item_type_filter != "Todos":
+            query = query.where(StockMovement.item_type == item_type_filter)
+
+        if search_filter:
+            query = query.where(
+                (StockMovement.item_code.ilike(f"%{search_filter}%")) |
+                (StockMovement.item_name.ilike(f"%{search_filter}%")) |
+                (StockMovement.lot_code.ilike(f"%{search_filter}%"))
+            )
+
+        movements = session.exec(query.order_by(StockMovement.movement_date.desc())).all()
+
+        if movements:
+            st.markdown(f"### 📊 Movimentações Encontradas ({len(movements)} registros)")
+
+            movement_history = []
+            for mov in movements:
+                movement_history.append({
+                    "Data": mov.movement_date.strftime("%d/%m/%Y"),
+                    "Hora": mov.movement_date.strftime("%H:%M:%S"),
+                    "Tipo": mov.movement_type,
+                    "Item Tipo": mov.item_type,
+                    "Código": mov.item_code,
+                    "Nome": mov.item_name,
+                    "Lote": mov.lot_code,
+                    "Quantidade": f"{mov.qty:.2f} {mov.uom}",
+                    "Motivo": mov.reason,
+                    "Observações": mov.notes or "-",
+                    "Usuário": mov.user or "Sistema"
+                })
+
+            history_df = pd.DataFrame(movement_history)
+
+            # Color code by movement type
+            def highlight_movement_type(row):
+                if row["Tipo"] == "Entrada":
+                    return ['background-color: #e8f5e9'] * len(row)  # Light green
+                elif row["Tipo"] == "Saída":
+                    return ['background-color: #ffebee'] * len(row)  # Light red
+                else:
+                    return [''] * len(row)
+
+            styled_df = history_df.style.apply(highlight_movement_type, axis=1)
+            st.dataframe(styled_df, hide_index=True, use_container_width=True)
+
+            # Summary metrics
+            st.markdown("---")
+            st.markdown("### 📈 Resumo do Período")
+
+            summary_col1, summary_col2, summary_col3, summary_col4 = st.columns(4)
+
+            total_entries = sum(1 for mov in movements if mov.movement_type == "Entrada")
+            total_withdrawals = sum(1 for mov in movements if mov.movement_type == "Saída")
+
+            with summary_col1:
+                st.metric("Total de Movimentações", len(movements))
+
+            with summary_col2:
+                st.metric("Entradas", total_entries)
+
+            with summary_col3:
+                st.metric("Saídas", total_withdrawals)
+
+            with summary_col4:
+                balance = total_entries - total_withdrawals
+                st.metric("Saldo de Movimentações", balance, delta=balance)
+
+            # Export functionality
+            st.markdown("---")
+            if st.button("📊 Exportar Histórico de Movimentação", use_container_width=True):
+                from io import BytesIO
+                output = BytesIO()
+
+                with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                    history_df.to_excel(writer, sheet_name='Historico_Movimentacao', index=False)
+
+                st.download_button(
+                    label="📥 Download Excel",
+                    data=output.getvalue(),
+                    file_name=f"historico_movimentacao_{movement_date_from.strftime('%Y%m%d')}_{movement_date_to.strftime('%Y%m%d')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+
+        else:
+            st.info(f"Nenhuma movimentação encontrada entre {movement_date_from.strftime('%d/%m/%Y')} e {movement_date_to.strftime('%d/%m/%Y')} com os filtros selecionados.")
