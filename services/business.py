@@ -296,15 +296,15 @@ def calculate_inventory_turnover(session: Session, item_type: str, days: int = 3
         "current_value": current_stock["total_value"]
     }
 
-def consume_raw_materials_from_stock(session: Session, product_id: int, produced_units: float) -> dict:
+def consume_raw_materials_from_stock(session: Session, product_id: int, produced_units: float, po_code: str = None) -> dict:
     """
     Automatically consume raw materials from stock when a production order is completed.
     Uses FEFO (First Expired, First Out) logic to select lots for consumption.
     
     Returns a dictionary with consumption details and any issues.
     """
-    from models import Formulation, FormulaItem, Product, RawMaterial, StockLot
-    from datetime import date
+    from models import Formulation, FormulaItem, Product, RawMaterial, StockLot, StockMovement
+    from datetime import date, datetime
     
     # Get approved formulation for the product
     formulation = session.exec(
@@ -390,6 +390,7 @@ def consume_raw_materials_from_stock(session: Session, product_id: int, produced
             issues.append(f"Estoque insuficiente para {raw_material.code}: necessário {required_qty:.3f} {formula_item.uom}, disponível {total_available:.3f} {formula_item.uom}")
             # Even with insufficient stock, consume what's available
             if total_available > 0:
+                import streamlit as st
                 st.warning(f"⚠️ Consumindo apenas o disponível para {raw_material.code}: {total_available:.3f} {formula_item.uom}")
                 required_qty = total_available  # Adjust to consume only what's available
             else:
@@ -416,6 +417,25 @@ def consume_raw_materials_from_stock(session: Session, product_id: int, produced
             lot.qty -= consume_in_lot_unit
             if lot.qty < 0:  # Prevent negative quantities due to conversion rounding
                 lot.qty = 0
+            
+            # Register stock movement
+            movement_notes = f"Ordem de Produção: {po_code}" if po_code else "Consumo por Ordem de Produção"
+            movement_notes += f" | Produto: {product.code} - {product.name} | {produced_units:.0f} unidades"
+            
+            movement = StockMovement(
+                movement_type="Saída",
+                item_type="MP",
+                item_id=raw_material.id,
+                item_code=raw_material.code,
+                item_name=raw_material.name_usual,
+                lot_code=lot.lot_code,
+                qty=consume_in_lot_unit,
+                uom=lot.uom,
+                reason="Ordem de Produção",
+                notes=movement_notes,
+                user="Sistema (Baixa Automática)"
+            )
+            session.add(movement)
             
             lot_consumptions.append({
                 "lot_code": lot.lot_code,

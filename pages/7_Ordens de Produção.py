@@ -172,7 +172,7 @@ with tab1:
                             # If status changed to "Concluída", consume raw materials from stock
                             if old_status != "Concluída" and new_status == "Concluída":
                                 from services.business import consume_raw_materials_from_stock
-                                consumption_result = consume_raw_materials_from_stock(session, po.product_id, po.qty_to_produce)
+                                consumption_result = consume_raw_materials_from_stock(session, po.product_id, po.qty_to_produce, po.code)
                                 consumption_results.append({
                                     "po_code": po.code,
                                     "result": consumption_result
