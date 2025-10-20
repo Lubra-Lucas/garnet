@@ -2,8 +2,8 @@
 # pages/10_SolicitacaoOrcamento.py
 import streamlit as st
 from auth import require_login, has_permission
-from sqlmodel import Session, select
-from db import engine, get_session
+from sqlmodel import select
+from db import get_session
 from models import QuoteRequest, QuoteItem, Supplier, PurchaseOrder, PurchaseItem
 import pandas as pd
 from datetime import date, timedelta
@@ -223,12 +223,12 @@ with tab1:
                         item_col1, item_col2, item_col3, item_col4 = st.columns(4)
                         
                         with item_col1:
-                            item["type"] = st.selectbox(f"Tipo {i+1}", ["MP", "PA"], 
-                                                      index=0 if item["type"] == "MP" else 1, key=f"edit_quote_type_{quote_to_edit.id}_{i}")
-                            item["name"] = st.text_input(f"Nome do {'Produto' if item['type'] == 'PA' else 'Item'} {i+1}", 
+                            item["type"] = st.selectbox(f"Tipo {i+1}", ["Matéria-Prima", "Insumo"], 
+                                                      index=0 if item["type"] == "Matéria-Prima" else 1, key=f"edit_quote_type_{quote_to_edit.id}_{i}")
+                            item["name"] = st.text_input(f"Nome do {'Produto' if item['type'] == 'Insumo' else 'Item'} {i+1}", 
                                                        value=item["name"], key=f"edit_quote_name_{quote_to_edit.id}_{i}")
                             
-                            if item["type"] == "MP":
+                            if item["type"] == "Matéria-Prima":
                                 item["chemical_name"] = st.text_input(f"Nome Químico {i+1}", 
                                                                     value=item["chemical_name"], key=f"edit_quote_chem_{quote_to_edit.id}_{i}")
                                 item["commercial_name"] = st.text_input(f"Nome Comercial {i+1}", 
@@ -261,7 +261,7 @@ with tab1:
                     if st.button("➕ Adicionar Item", key=f"add_item_{quote_to_edit.id}"):
                         edit_items.append({
                             "id": None,  # New item
-                            "type": "MP",
+                            "type": "Matéria-Prima",
                             "name": "",
                             "chemical_name": "",
                             "commercial_name": "",
@@ -383,7 +383,7 @@ with tab1:
                                     for item in quote_items:
                                         # Try to find matching raw material
                                         raw_material_id = None
-                                        if item.item_type == "MP":
+                                        if item.item_type =="Matéria-Prima":
                                             from models import RawMaterial
                                             rm = session.exec(
                                                 select(RawMaterial).where(
@@ -476,7 +476,7 @@ with tab1:
                     total_value += item.total_price_with_tax
                     
                     items_data.append({
-                        "Tipo": "Matéria-Prima" if item.item_type == "MP" else "Produto",
+                        "Tipo": "Matéria-Prima" if item.item_type == "Matéria-Prima" else "Produto",
                         "Nome do Item": item.item_name,
                         "Nome Químico": item.chemical_name or "N/A",
                         "Nome Comercial": item.commercial_name or "N/A",
@@ -511,7 +511,7 @@ with tab2:
         else:
             # Initialize quote items in session state
             if "quote_items" not in st.session_state:
-                st.session_state.quote_items = [{"type": "MP", "name": "", "chemical_name": "", "commercial_name": "", 
+                st.session_state.quote_items = [{"type": "Matéria-Prima", "name": "", "chemical_name": "", "commercial_name": "", 
                                                "min_qty": 0.0, "uom": "KG", "unit_price": 0.0, "total_price": 0.0, 
                                                "validity": None, "lead_time": None}]
             
@@ -556,12 +556,12 @@ with tab2:
                 item_col1, item_col2, item_col3, item_col4 = st.columns(4)
                 
                 with item_col1:
-                    item["type"] = st.selectbox(f"Tipo {i+1}", ["MP", "PA"], 
-                                              index=0 if item["type"] == "MP" else 1, key=f"quote_type_{i}")
-                    item["name"] = st.text_input(f"Nome do {'Produto' if item['type'] == 'PA' else 'Item'} {i+1}", 
+                    item["type"] = st.selectbox(f"Tipo {i+1}", ["Materia-Prima", "Insumo"], 
+                                              index=0 if item["type"] == "Matéria Prima" else 1, key=f"quote_type_{i}")
+                    item["name"] = st.text_input(f"Nome do {'Produto' if item['type'] == 'Insumo' else 'Item'} {i+1}", 
                                                value=item["name"], key=f"quote_name_{i}")
                     
-                    if item["type"] == "MP":
+                    if item["type"] == "Matéria-Prima":
                         item["chemical_name"] = st.text_input(f"Nome Químico {i+1}", 
                                                             value=item["chemical_name"], key=f"quote_chem_{i}")
                         item["commercial_name"] = st.text_input(f"Nome Comercial {i+1}", 
@@ -592,7 +592,7 @@ with tab2:
             
             # Add new item button
             if st.button("➕ Adicionar Item"):
-                st.session_state.quote_items.append({"type": "MP", "name": "", "chemical_name": "", "commercial_name": "", 
+                st.session_state.quote_items.append({"type": "Matéria-Prima", "name": "", "chemical_name": "", "commercial_name": "", 
                                                    "min_qty": 0.0, "uom": "KG", "unit_price": 0.0, "total_price": 0.0, 
                                                    "validity": None, "lead_time": None})
                 st.rerun()
