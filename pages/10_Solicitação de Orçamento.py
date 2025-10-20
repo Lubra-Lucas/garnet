@@ -556,8 +556,8 @@ with tab2:
                 item_col1, item_col2, item_col3, item_col4 = st.columns(4)
                 
                 with item_col1:
-                    item["type"] = st.selectbox(f"Tipo {i+1}", ["Materia-Prima", "Insumo"], 
-                                              index=0 if item["type"] == "Matéria Prima" else 1, key=f"quote_type_{i}")
+                    item["type"] = st.selectbox(f"Tipo {i+1}", ["Matéria-Prima", "Insumo"], 
+                                              index=0 if item["type"] == "Matéria-Prima" else 1, key=f"quote_type_{i}")
                     item["name"] = st.text_input(f"Nome do {'Produto' if item['type'] == 'Insumo' else 'Item'} {i+1}", 
                                                value=item["name"], key=f"quote_name_{i}")
                     

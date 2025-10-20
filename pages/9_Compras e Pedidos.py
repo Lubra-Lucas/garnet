@@ -111,6 +111,220 @@ with tab1:
         else:
             st.dataframe(df, hide_index=True, use_container_width=True)
         
+        # Action buttons for editing purchase orders
+        if results and has_permission("operator"):
+            st.markdown("---")
+            st.subheader("🔧 Editar Pedido de Compra")
+            
+            edit_po_options = [f"{po.code} - {next(s for p, s in results if p.id == po.id)}" for po, _ in results]
+            selected_edit_po = st.selectbox("Selecione pedido para editar:", ["Selecione..."] + edit_po_options, key="edit_po_select")
+            
+            if selected_edit_po != "Selecione...":
+                selected_edit_po_id = next(po.id for po, _ in results if f"{po.code} - {next(s for p, s in results if p.id == po.id)}" == selected_edit_po)
+                
+                edit_col1, edit_col2 = st.columns(2)
+                
+                with edit_col1:
+                    if st.button("✏️ Editar Dados do Pedido", use_container_width=True):
+                        st.session_state.edit_po_id = selected_edit_po_id
+                        st.session_state.show_edit_po_form = True
+                
+                with edit_col2:
+                    if st.button("📝 Editar Itens do Pedido", use_container_width=True):
+                        st.session_state.edit_po_items_id = selected_edit_po_id
+                        st.session_state.show_edit_po_items = True
+        
+        # Edit PO form
+        if st.session_state.get('show_edit_po_form') and st.session_state.get('edit_po_id'):
+            with Session(engine) as session:
+                po_to_edit = session.get(PurchaseOrder, st.session_state.edit_po_id)
+                suppliers = session.exec(select(Supplier).where(Supplier.status == "ativo")).all()
+                
+                if po_to_edit and suppliers:
+                    st.markdown("### ✏️ Editar Dados do Pedido de Compra")
+                    
+                    with st.form(f"edit_po_{po_to_edit.id}"):
+                        edit_po_col1, edit_po_col2 = st.columns(2)
+                        
+                        with edit_po_col1:
+                            edit_code = st.text_input("Código do Pedido *", value=po_to_edit.code)
+                            
+                            # Current supplier
+                            current_supplier = session.get(Supplier, po_to_edit.supplier_id)
+                            supplier_options = [f"{s.name} (ID: {s.id})" for s in suppliers]
+                            current_supplier_option = f"{current_supplier.name} (ID: {current_supplier.id})"
+                            current_index = supplier_options.index(current_supplier_option) if current_supplier_option in supplier_options else 0
+                            
+                            selected_supplier_option = st.selectbox("Fornecedor *", supplier_options, index=current_index)
+                            selected_supplier_id = int(selected_supplier_option.split("ID: ")[1].split(")")[0])
+                        
+                        with edit_po_col2:
+                            edit_order_date = st.date_input("Data do Pedido", value=po_to_edit.order_date)
+                            edit_status = st.selectbox("Status", ["Aberto", "Enviado", "Recebido", "Cancelado"], 
+                                                     index=["Aberto", "Enviado", "Recebido", "Cancelado"].index(po_to_edit.status))
+                        
+                        edit_payment_terms = st.text_input("Condições de Pagamento", value=po_to_edit.payment_terms or "")
+                        
+                        form_col1, form_col2 = st.columns(2)
+                        
+                        with form_col1:
+                            if st.form_submit_button("💾 Salvar Alterações", use_container_width=True):
+                                if not edit_code:
+                                    st.error("Código do pedido é obrigatório.")
+                                else:
+                                    try:
+                                        # Check if new code already exists (if changed)
+                                        if edit_code != po_to_edit.code:
+                                            existing = session.exec(
+                                                select(PurchaseOrder).where(PurchaseOrder.code == edit_code)
+                                            ).first()
+                                            
+                                            if existing:
+                                                st.error("Já existe um pedido com este código.")
+                                                st.stop()
+                                        
+                                        # Update PO
+                                        po_to_edit.code = edit_code
+                                        po_to_edit.supplier_id = selected_supplier_id
+                                        po_to_edit.order_date = edit_order_date
+                                        po_to_edit.status = edit_status
+                                        po_to_edit.payment_terms = edit_payment_terms if edit_payment_terms else None
+                                        
+                                        session.commit()
+                                        st.success("Pedido de compra atualizado com sucesso!")
+                                        st.session_state.show_edit_po_form = False
+                                        st.rerun()
+                                    
+                                    except Exception as e:
+                                        st.error(f"Erro ao atualizar pedido: {str(e)}")
+                        
+                        with form_col2:
+                            if st.form_submit_button("❌ Cancelar", use_container_width=True):
+                                st.session_state.show_edit_po_form = False
+                                st.rerun()
+        
+        # Edit PO items
+        if st.session_state.get('show_edit_po_items') and st.session_state.get('edit_po_items_id'):
+            with Session(engine) as session:
+                po_to_edit = session.get(PurchaseOrder, st.session_state.edit_po_items_id)
+                po_items = session.exec(
+                    select(PurchaseItem).where(PurchaseItem.po_id == po_to_edit.id)
+                ).all()
+                raw_materials = session.exec(select(RawMaterial).where(RawMaterial.status == "ativo")).all()
+                
+                if po_to_edit and raw_materials:
+                    st.markdown("### 📝 Editar Itens do Pedido de Compra")
+                    st.info(f"Editando itens do pedido: {po_to_edit.code}")
+                    
+                    # Initialize PO items in session state if not exists
+                    if f"edit_po_items_{po_to_edit.id}" not in st.session_state:
+                        st.session_state[f"edit_po_items_{po_to_edit.id}"] = []
+                        for item in po_items:
+                            st.session_state[f"edit_po_items_{po_to_edit.id}"].append({
+                                "id": item.id,
+                                "rm_id": item.raw_material_id,
+                                "qty": item.qty,
+                                "uom": item.uom,
+                                "price": item.price,
+                                "due_date": item.due_date,
+                                "received_qty": item.received_qty
+                            })
+                    
+                    edit_items = st.session_state[f"edit_po_items_{po_to_edit.id}"]
+                    
+                    # Display items for editing
+                    for i, item in enumerate(edit_items):
+                        st.markdown(f"**Item {i+1}**")
+                        item_col1, item_col2, item_col3, item_col4, item_col5, item_col6 = st.columns([3, 1, 1, 1, 2, 1])
+                        
+                        with item_col1:
+                            rm_options = [f"{rm.code} - {rm.name_usual}" for rm in raw_materials]
+                            current_rm = next((rm for rm in raw_materials if rm.id == item["rm_id"]), None)
+                            current_option = f"{current_rm.code} - {current_rm.name_usual}" if current_rm else None
+                            current_index = rm_options.index(current_option) if current_option in rm_options else 0
+                            
+                            rm_selection = st.selectbox(f"Matéria-Prima {i+1}", rm_options, index=current_index, key=f"edit_po_rm_{po_to_edit.id}_{i}")
+                            item["rm_id"] = raw_materials[rm_options.index(rm_selection)].id
+                        
+                        with item_col2:
+                            item["qty"] = st.number_input(f"Qtd {i+1}", min_value=0.0, value=item["qty"], step=0.1, key=f"edit_po_qty_{po_to_edit.id}_{i}")
+                        
+                        with item_col3:
+                            item["uom"] = st.selectbox(f"UOM {i+1}", ["KG", "G", "L", "ML", "UN"], 
+                                                     index=["KG", "G", "L", "ML", "UN"].index(item["uom"]), key=f"edit_po_uom_{po_to_edit.id}_{i}")
+                        
+                        with item_col4:
+                            item["price"] = st.number_input(f"Preço {i+1}", min_value=0.0, value=item["price"], step=0.01, key=f"edit_po_price_{po_to_edit.id}_{i}")
+                        
+                        with item_col5:
+                            item["due_date"] = st.date_input(f"Entrega {i+1}", value=item["due_date"], key=f"edit_po_due_{po_to_edit.id}_{i}")
+                        
+                        with item_col6:
+                            st.write("")  # Spacing
+                            st.write("")  # Spacing
+                            if st.button("🗑️ Remover", key=f"edit_po_del_{po_to_edit.id}_{i}"):
+                                edit_items.pop(i)
+                                st.rerun()
+                    
+                    # Add new item button
+                    if st.button("➕ Adicionar Item", key=f"add_po_item_{po_to_edit.id}"):
+                        edit_items.append({
+                            "id": None,  # New item
+                            "rm_id": raw_materials[0].id if raw_materials else None,
+                            "qty": 0.0,
+                            "uom": "KG",
+                            "price": 0.0,
+                            "due_date": date.today(),
+                            "received_qty": 0.0
+                        })
+                        st.rerun()
+                    
+                    # Calculate total
+                    total_po_value = sum(item["qty"] * item["price"] for item in edit_items if item["rm_id"] and item["qty"] > 0 and item["price"] > 0)
+                    st.info(f"💰 Valor Total do Pedido: R$ {total_po_value:.2f}")
+                    
+                    # Save/Cancel buttons
+                    save_col1, save_col2 = st.columns(2)
+                    
+                    with save_col1:
+                        if st.button("💾 Salvar Itens", use_container_width=True, key=f"save_po_items_{po_to_edit.id}"):
+                            try:
+                                # Delete existing items
+                                for item in po_items:
+                                    session.delete(item)
+                                
+                                # Add updated items
+                                for item in edit_items:
+                                    if item["rm_id"]:
+                                        po_item = PurchaseItem(
+                                            po_id=po_to_edit.id,
+                                            raw_material_id=item["rm_id"],
+                                            qty=item["qty"],
+                                            uom=item["uom"],
+                                            price=item["price"],
+                                            due_date=item["due_date"],
+                                            received_qty=item.get("received_qty", 0.0)
+                                        )
+                                        session.add(po_item)
+                                
+                                # Update total value
+                                po_to_edit.total_value = total_po_value
+                                
+                                session.commit()
+                                st.success("Itens do pedido atualizados com sucesso!")
+                                st.session_state.show_edit_po_items = False
+                                del st.session_state[f"edit_po_items_{po_to_edit.id}"]
+                                st.rerun()
+                            
+                            except Exception as e:
+                                st.error(f"Erro ao atualizar itens: {str(e)}")
+                    
+                    with save_col2:
+                        if st.button("❌ Cancelar", use_container_width=True, key=f"cancel_po_items_{po_to_edit.id}"):
+                            st.session_state.show_edit_po_items = False
+                            del st.session_state[f"edit_po_items_{po_to_edit.id}"]
+                            st.rerun()
+        
         # Detailed view
         st.markdown("---")
         st.subheader("Detalhes do Pedido")
