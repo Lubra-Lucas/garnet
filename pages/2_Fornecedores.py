@@ -149,17 +149,30 @@ with tab1:
                                 edit_status = st.selectbox("Status", ["ativo", "inativo"], 
                                                          index=0 if edit_supplier.status == "ativo" else 1)
                             
-                            # Show current certification file if exists
-                            if edit_supplier.certification_file_path and os.path.exists(edit_supplier.certification_file_path):
-                                st.info(f"📄 Certificação atual: {os.path.basename(edit_supplier.certification_file_path)}")
+                            # Show current certification files if exist
+                            if edit_supplier.certification_file_path:
+                                import json
+                                try:
+                                    cert_paths = json.loads(edit_supplier.certification_file_path)
+                                    if isinstance(cert_paths, list):
+                                        st.info(f"📄 {len(cert_paths)} certificação(ões) atual(is)")
+                                    else:
+                                        st.info(f"📄 Certificação atual: {os.path.basename(edit_supplier.certification_file_path)}")
+                                except json.JSONDecodeError:
+                                    st.info(f"📄 Certificação atual: {os.path.basename(edit_supplier.certification_file_path)}")
                             
-                            # Upload new certification
-                            edit_uploaded_certification = st.file_uploader(
-                                "Substituir certificação (PDF)",
+                            # Upload new certifications
+                            edit_uploaded_certifications = st.file_uploader(
+                                "Substituir certificações (PDF) - máximo 15",
                                 type=['pdf'],
-                                help="Deixe vazio para manter a certificação atual",
+                                accept_multiple_files=True,
+                                help="Deixe vazio para manter as certificações atuais",
                                 key=f"edit_cert_{edit_supplier.id}"
                             )
+                            
+                            if edit_uploaded_certifications and len(edit_uploaded_certifications) > 15:
+                                st.error("Limite de 15 arquivos excedido. Por favor, selecione no máximo 15 arquivos.")
+                                edit_uploaded_certifications = edit_uploaded_certifications[:15]
                             
                             edit_notes = st.text_area("Observações", value=edit_supplier.notes or "")
                             
@@ -170,31 +183,54 @@ with tab1:
                                     try:
                                         certification_file_path = edit_supplier.certification_file_path
                                         
-                                        # Handle new certification file upload
-                                        if edit_uploaded_certification is not None:
+                                        # Handle new certification files upload
+                                        if edit_uploaded_certifications:
+                                            import json
+                                            
+                                            # Delete old files if exist
+                                            if certification_file_path:
+                                                try:
+                                                    old_paths = json.loads(certification_file_path)
+                                                    if isinstance(old_paths, list):
+                                                        for old_path in old_paths:
+                                                            if os.path.exists(old_path):
+                                                                try:
+                                                                    os.remove(old_path)
+                                                                except:
+                                                                    pass
+                                                    else:
+                                                        if os.path.exists(certification_file_path):
+                                                            try:
+                                                                os.remove(certification_file_path)
+                                                            except:
+                                                                pass
+                                                except json.JSONDecodeError:
+                                                    if os.path.exists(certification_file_path):
+                                                        try:
+                                                            os.remove(certification_file_path)
+                                                        except:
+                                                            pass
+                                            
                                             # Create uploads directory if it doesn't exist
                                             upload_dir = "uploads/certifications"
                                             os.makedirs(upload_dir, exist_ok=True)
                                             
-                                            # Generate unique filename
-                                            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                                            safe_name = "".join(c for c in edit_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
-                                            safe_name = safe_name.replace(' ', '_')
-                                            filename = f"{safe_name}_{timestamp}_certification.pdf"
-                                            file_path = os.path.join(upload_dir, filename)
+                                            # Save new files
+                                            certification_file_paths = []
+                                            for idx, uploaded_file in enumerate(edit_uploaded_certifications[:15]):
+                                                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                                                safe_name = "".join(c for c in edit_name if c.isalnum() or c in (' ', '-', '_')).rstrip()
+                                                safe_name = safe_name.replace(' ', '_')
+                                                filename = f"{safe_name}_{timestamp}_{idx+1}_certification.pdf"
+                                                file_path = os.path.join(upload_dir, filename)
+                                                
+                                                # Save the file
+                                                with open(file_path, "wb") as f:
+                                                    f.write(uploaded_file.getbuffer())
+                                                
+                                                certification_file_paths.append(file_path)
                                             
-                                            # Save the new file
-                                            with open(file_path, "wb") as f:
-                                                f.write(edit_uploaded_certification.getbuffer())
-                                            
-                                            # Delete old file if exists
-                                            if certification_file_path and os.path.exists(certification_file_path):
-                                                try:
-                                                    os.remove(certification_file_path)
-                                                except:
-                                                    pass  # Ignore errors when deleting old file
-                                            
-                                            certification_file_path = file_path
+                                            certification_file_path = json.dumps(certification_file_paths)
                                         
                                         with Session(engine) as session:
                                             # Check if name already exists for another supplier
@@ -223,8 +259,8 @@ with tab1:
                                                 
                                                 session.commit()
                                                 success_msg = f"Fornecedor '{edit_name}' atualizado com sucesso!"
-                                                if edit_uploaded_certification is not None:
-                                                    success_msg += " Nova certificação anexada."
+                                                if edit_uploaded_certifications:
+                                                    success_msg += f" {len(edit_uploaded_certifications)} nova(s) certificação(ões) anexada(s)."
                                                 st.success(success_msg)
                                                 st.rerun()
                                     
@@ -319,14 +355,32 @@ with tab1:
                                         for rm in raw_materials:
                                             rm.supplier_id = None  # Remove supplier reference
                                         
-                                        # Delete certification file if exists
+                                        # Delete certification files if exist
                                         supplier_to_delete = session.get(Supplier, delete_supplier.id)
                                         if supplier_to_delete:
-                                            if supplier_to_delete.certification_file_path and os.path.exists(supplier_to_delete.certification_file_path):
+                                            if supplier_to_delete.certification_file_path:
+                                                import json
                                                 try:
-                                                    os.remove(supplier_to_delete.certification_file_path)
-                                                except:
-                                                    pass  # Ignore errors when deleting file
+                                                    cert_paths = json.loads(supplier_to_delete.certification_file_path)
+                                                    if isinstance(cert_paths, list):
+                                                        for cert_path in cert_paths:
+                                                            if os.path.exists(cert_path):
+                                                                try:
+                                                                    os.remove(cert_path)
+                                                                except:
+                                                                    pass
+                                                    else:
+                                                        if os.path.exists(supplier_to_delete.certification_file_path):
+                                                            try:
+                                                                os.remove(supplier_to_delete.certification_file_path)
+                                                            except:
+                                                                pass
+                                                except json.JSONDecodeError:
+                                                    if os.path.exists(supplier_to_delete.certification_file_path):
+                                                        try:
+                                                            os.remove(supplier_to_delete.certification_file_path)
+                                                        except:
+                                                            pass
                                             
                                             session.delete(supplier_to_delete)
                                             session.commit()
@@ -388,17 +442,48 @@ with tab1:
                     st.text(selected_supplier.certifications)
                 
                 if selected_supplier.certification_file_path:
-                    st.markdown("**Arquivo de Certificação**")
-                    if os.path.exists(selected_supplier.certification_file_path):
-                        with open(selected_supplier.certification_file_path, "rb") as file:
-                            st.download_button(
-                                label="📄 Baixar Certificação PDF",
-                                data=file.read(),
-                                file_name=f"certificacao_{selected_supplier.name}.pdf",
-                                mime="application/pdf"
-                            )
-                    else:
-                        st.text("Arquivo não encontrado")
+                    st.markdown("**Arquivos de Certificação**")
+                    import json
+                    try:
+                        # Try to parse as JSON list
+                        cert_paths = json.loads(selected_supplier.certification_file_path)
+                        if isinstance(cert_paths, list):
+                            for idx, cert_path in enumerate(cert_paths):
+                                if os.path.exists(cert_path):
+                                    with open(cert_path, "rb") as file:
+                                        st.download_button(
+                                            label=f"📄 Baixar Certificação {idx+1}",
+                                            data=file.read(),
+                                            file_name=f"certificacao_{selected_supplier.name}_{idx+1}.pdf",
+                                            mime="application/pdf",
+                                            key=f"download_cert_{selected_supplier.id}_{idx}"
+                                        )
+                                else:
+                                    st.text(f"Arquivo {idx+1} não encontrado")
+                        else:
+                            # Old format - single file
+                            if os.path.exists(selected_supplier.certification_file_path):
+                                with open(selected_supplier.certification_file_path, "rb") as file:
+                                    st.download_button(
+                                        label="📄 Baixar Certificação PDF",
+                                        data=file.read(),
+                                        file_name=f"certificacao_{selected_supplier.name}.pdf",
+                                        mime="application/pdf"
+                                    )
+                            else:
+                                st.text("Arquivo não encontrado")
+                    except json.JSONDecodeError:
+                        # Old format - single file path string
+                        if os.path.exists(selected_supplier.certification_file_path):
+                            with open(selected_supplier.certification_file_path, "rb") as file:
+                                st.download_button(
+                                    label="📄 Baixar Certificação PDF",
+                                    data=file.read(),
+                                    file_name=f"certificacao_{selected_supplier.name}.pdf",
+                                    mime="application/pdf"
+                                )
+                        else:
+                            st.text("Arquivo não encontrado")
                 
                 if selected_supplier.notes:
                     st.markdown("**Observações**")
@@ -427,13 +512,18 @@ with tab2:
                 address = st.text_area("Endereço", placeholder="Endereço completo")
                 certifications = st.text_area("Certificações", placeholder="Descrição das certificações")
             
-            # File upload for certifications
+            # File upload for certifications - multiple files
             st.markdown("**📄 Anexar Certificações (PDF)**")
-            uploaded_certification = st.file_uploader(
-                "Escolha o arquivo PDF das certificações",
+            uploaded_certifications = st.file_uploader(
+                "Escolha os arquivos PDF das certificações (máximo 15)",
                 type=['pdf'],
-                help="Apenas arquivos PDF são aceitos"
+                accept_multiple_files=True,
+                help="Você pode selecionar até 15 arquivos PDF"
             )
+            
+            if uploaded_certifications and len(uploaded_certifications) > 15:
+                st.error("Limite de 15 arquivos excedido. Por favor, selecione no máximo 15 arquivos.")
+                uploaded_certifications = uploaded_certifications[:15]
             
             notes = st.text_area("Observações", placeholder="Observações adicionais")
             
@@ -444,26 +534,31 @@ with tab2:
                     st.error("Nome do fornecedor é obrigatório.")
                 else:
                     try:
-                        certification_file_path = None
+                        certification_file_paths = []
                         
-                        # Handle file upload if provided
-                        if uploaded_certification is not None:
+                        # Handle file uploads if provided
+                        if uploaded_certifications:
                             # Create uploads directory if it doesn't exist
                             upload_dir = "uploads/certifications"
                             os.makedirs(upload_dir, exist_ok=True)
                             
-                            # Generate unique filename
-                            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                            safe_name = "".join(c for c in name if c.isalnum() or c in (' ', '-', '_')).rstrip()
-                            safe_name = safe_name.replace(' ', '_')
-                            filename = f"{safe_name}_{timestamp}_certification.pdf"
-                            file_path = os.path.join(upload_dir, filename)
-                            
-                            # Save the file
-                            with open(file_path, "wb") as f:
-                                f.write(uploaded_certification.getbuffer())
-                            
-                            certification_file_path = file_path
+                            # Save each file
+                            for idx, uploaded_file in enumerate(uploaded_certifications[:15]):
+                                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                                safe_name = "".join(c for c in name if c.isalnum() or c in (' ', '-', '_')).rstrip()
+                                safe_name = safe_name.replace(' ', '_')
+                                filename = f"{safe_name}_{timestamp}_{idx+1}_certification.pdf"
+                                file_path = os.path.join(upload_dir, filename)
+                                
+                                # Save the file
+                                with open(file_path, "wb") as f:
+                                    f.write(uploaded_file.getbuffer())
+                                
+                                certification_file_paths.append(file_path)
+                        
+                        # Convert list to JSON string for storage
+                        import json
+                        certification_file_path = json.dumps(certification_file_paths) if certification_file_paths else None
                         
                         with Session(engine) as session:
                             # Check if supplier already exists
@@ -491,8 +586,8 @@ with tab2:
                                 session.commit()
                                 
                                 success_msg = f"Fornecedor '{name}' cadastrado com sucesso!"
-                                if certification_file_path:
-                                    success_msg += " Certificação anexada."
+                                if certification_file_paths:
+                                    success_msg += f" {len(certification_file_paths)} certificação(ões) anexada(s)."
                                 st.success(success_msg)
                                 st.rerun()
                     
