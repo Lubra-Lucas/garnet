@@ -25,7 +25,8 @@ class Supplier(SQLModel, table=True):
     payment_terms: Optional[str] = None
     avg_leadtime_days: Optional[int] = None
     certifications: Optional[str] = None
-    certification_file_path: Optional[str] = None  # Path to uploaded certification PDF file
+    certification_file_path: Optional[str] = None  # Path to uploaded certification PDF file (legacy - single file)
+    certification_files: Optional[str] = None  # JSON array of paths to multiple certification files
     notes: Optional[str] = None
     status: str = Field(default="ativo")
     created_at: Optional[datetime] = Field(default_factory=datetime.now)
