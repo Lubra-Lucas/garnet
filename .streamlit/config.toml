@@ -7,14 +7,5 @@ port = 5000
 primaryColor = "#2E4A6B"
 backgroundColor = "#FFFFFF"
 secondaryBackgroundColor = "#F8F9FA"
-textColor = "#262730"
+textColor = "#1A1A1A"
 font = "sans serif"
-
-[server]
-enableCORS = false
-enableXsrfProtection = false
-maxUploadSize = 500
-maxMessageSize = 500
-
-[browser]
-gatherUsageStats = false
