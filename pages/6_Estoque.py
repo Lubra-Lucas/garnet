@@ -1046,6 +1046,7 @@ with tab6:
             movement_history = []
             for mov in movements:
                 movement_history.append({
+                    "ID": mov.id,
                     "Data": mov.movement_date.strftime("%d/%m/%Y"),
                     "Hora": mov.movement_date.strftime("%H:%M:%S"),
                     "Tipo": mov.movement_type,
@@ -1070,8 +1071,139 @@ with tab6:
                 else:
                     return [''] * len(row)
 
-            styled_df = history_df.style.apply(highlight_movement_type, axis=1)
+            # Display dataframe without ID column for regular users
+            display_columns = [col for col in history_df.columns if col != "ID"]
+            styled_df = history_df[display_columns].style.apply(highlight_movement_type, axis=1)
             st.dataframe(styled_df, hide_index=True, use_container_width=True)
+
+            # Delete functionality for managers only
+            if has_permission("manager"):
+                st.markdown("---")
+                st.markdown("### 🗑️ Excluir Movimentação (Apenas Gerentes)")
+                st.warning("⚠️ **ATENÇÃO**: Excluir uma movimentação irá reverter o estoque automaticamente!")
+
+                with st.form("delete_movement_form"):
+                    col_del1, col_del2 = st.columns([3, 1])
+
+                    with col_del1:
+                        # Create selection options with movement details
+                        movement_options = []
+                        for mov in movements:
+                            option_text = f"{mov.movement_date.strftime('%d/%m/%Y %H:%M')} | {mov.movement_type} | {mov.item_code} - {mov.item_name} | Lote: {mov.lot_code} | {mov.qty:.2f} {mov.uom}"
+                            movement_options.append(option_text)
+
+                        selected_movement_option = st.selectbox(
+                            "Selecione a movimentação para excluir:",
+                            movement_options,
+                            key="delete_movement_select"
+                        )
+
+                        if selected_movement_option:
+                            selected_index = movement_options.index(selected_movement_option)
+                            selected_movement = movements[selected_index]
+
+                            # Show impact of deletion
+                            if selected_movement.movement_type == "Entrada":
+                                st.info(f"💡 **Impacto**: O estoque do lote '{selected_movement.lot_code}' será **REDUZIDO** em {selected_movement.qty:.2f} {selected_movement.uom}")
+                            else:  # Saída
+                                st.info(f"💡 **Impacto**: O estoque do lote '{selected_movement.lot_code}' será **AUMENTADO** em {selected_movement.qty:.2f} {selected_movement.uom}")
+
+                    with col_del2:
+                        st.write("")  # Spacer
+                        st.write("")  # Spacer
+
+                    delete_reason = st.text_area(
+                        "Motivo da Exclusão (obrigatório):",
+                        placeholder="Explique por que esta movimentação está sendo excluída...",
+                        key="delete_movement_reason"
+                    )
+
+                    confirm_delete = st.checkbox("Confirmo que desejo excluir esta movimentação", key="confirm_delete_movement")
+
+                    submitted_delete = st.form_submit_button("🗑️ Confirmar Exclusão", use_container_width=True, type="secondary")
+
+                    if submitted_delete:
+                        if not confirm_delete:
+                            st.error("Você precisa confirmar a exclusão marcando a caixa acima.")
+                        elif not delete_reason or len(delete_reason.strip()) < 10:
+                            st.error("Por favor, forneça um motivo detalhado para a exclusão (mínimo 10 caracteres).")
+                        else:
+                            try:
+                                with Session(engine) as session:
+                                    # Get the movement to delete
+                                    movement_to_delete = session.get(StockMovement, selected_movement.id)
+
+                                    if not movement_to_delete:
+                                        st.error("Movimentação não encontrada.")
+                                    else:
+                                        # Find the corresponding lot
+                                        lot = session.exec(
+                                            select(StockLot).where(
+                                                (StockLot.lot_code == movement_to_delete.lot_code) &
+                                                (StockLot.item_type == movement_to_delete.item_type) &
+                                                (StockLot.item_id == movement_to_delete.item_id)
+                                            )
+                                        ).first()
+
+                                        if lot:
+                                            # Reverse the stock movement
+                                            if movement_to_delete.movement_type == "Entrada":
+                                                # Entrada being deleted = subtract from stock
+                                                lot.qty -= movement_to_delete.qty
+                                                action_description = f"reduzido em {movement_to_delete.qty:.2f} {movement_to_delete.uom}"
+                                            else:  # Saída
+                                                # Saída being deleted = add back to stock
+                                                lot.qty += movement_to_delete.qty
+                                                action_description = f"aumentado em {movement_to_delete.qty:.2f} {movement_to_delete.uom}"
+
+                                            # Prevent negative stock
+                                            if lot.qty < 0:
+                                                st.error(f"Erro: A exclusão desta movimentação resultaria em estoque negativo ({lot.qty:.2f} {lot.uom}). Operação cancelada.")
+                                            else:
+                                                # Create a compensating movement record for audit trail
+                                                compensating_movement = StockMovement(
+                                                    movement_type="Saída" if movement_to_delete.movement_type == "Entrada" else "Entrada",
+                                                    item_type=movement_to_delete.item_type,
+                                                    item_id=movement_to_delete.item_id,
+                                                    item_code=movement_to_delete.item_code,
+                                                    item_name=movement_to_delete.item_name,
+                                                    lot_code=movement_to_delete.lot_code,
+                                                    qty=movement_to_delete.qty,
+                                                    uom=movement_to_delete.uom,
+                                                    reason="Reversão por Exclusão de Movimentação",
+                                                    notes=f"Reversão da movimentação ID {movement_to_delete.id} ({movement_to_delete.movement_type}). Motivo: {delete_reason}",
+                                                    user=st.session_state.get("user", {}).get("name", "Sistema")
+                                                )
+                                                session.add(compensating_movement)
+
+                                                # Delete the original movement
+                                                session.delete(movement_to_delete)
+
+                                                session.commit()
+
+                                                st.success(f"""
+                                                ✅ **Movimentação excluída com sucesso!**
+                                                
+                                                **Detalhes da Reversão:**
+                                                - **Lote:** {lot.lot_code}
+                                                - **Estoque {action_description}**
+                                                - **Quantidade atual do lote:** {lot.qty:.2f} {lot.uom}
+                                                - **Registro de auditoria criado para rastreabilidade**
+                                                """)
+                                                st.rerun()
+                                        else:
+                                            # Lot not found - still delete the orphaned movement
+                                            st.warning(f"⚠️ Lote '{movement_to_delete.lot_code}' não encontrado. A movimentação será excluída sem ajuste de estoque.")
+                                            
+                                            session.delete(movement_to_delete)
+                                            session.commit()
+                                            
+                                            st.success("✅ Movimentação órfã excluída com sucesso!")
+                                            st.rerun()
+
+                            except Exception as e:
+                                st.error(f"Erro ao excluir movimentação: {str(e)}")
+                                session.rollback()
 
             # Summary metrics
             st.markdown("---")
