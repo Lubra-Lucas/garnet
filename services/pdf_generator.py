@@ -108,7 +108,7 @@ def generate_quote_request_pdf(quote_request, supplier, items):
     story.append(Spacer(1, 0.5*cm))
     
     # Tabela de itens
-    items_data = [["#", "Tipo", "Nome do Item", "Nome Químico", "Nome Comercial", "Quantidade"]]
+    items_data = [["#", "Tipo", "Nome do Item", "Nome Químico", "Nome Comercial", "Quantidade", "Unidade"]]
     
     for idx, item in enumerate(items, 1):
         items_data.append([
@@ -117,10 +117,11 @@ def generate_quote_request_pdf(quote_request, supplier, items):
             item.item_name,
             item.chemical_name or "-",
             item.commercial_name or "-",
-            str(item.quantity)
+            str(item.min_quantity),
+            item.uom
         ])
     
-    table_items = Table(items_data, colWidths=[1*cm, 2.5*cm, 3.5*cm, 3*cm, 3*cm, 2*cm])
+    table_items = Table(items_data, colWidths=[0.8*cm, 2*cm, 3*cm, 2.5*cm, 2.5*cm, 1.7*cm, 1.5*cm])
     table_items.setStyle(TableStyle([
         # Cabeçalho
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2E4A6B')),
