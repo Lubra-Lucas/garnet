@@ -43,6 +43,7 @@ class RawMaterial(SQLModel, table=True):
     conv_factor: Optional[float] = None  # ex.: KG↔G
     shelf_life_days: Optional[int] = None
     location: Optional[str] = None
+    certification_file_path: Optional[str] = None  # Path to uploaded certification PDF files (JSON list)
     status: str = Field(default="ativo")
     created_at: Optional[datetime] = Field(default_factory=datetime.now)
 

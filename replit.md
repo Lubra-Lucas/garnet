@@ -27,26 +27,36 @@ Preferred communication style: Simple, everyday language.
   - `services/reports.py` - Report generation and KPI calculations
   - `services/io_import.py` - Data import functionality
   - `services/io_export.py` - Data export functionality
+- **Utility Modules**: Reusable components in `utils/` directory:
+  - `utils/ui_components.py` - Standardized UI components and styling
+  - `utils/form_helpers.py` - Form utilities and validation helpers
+  - `utils/data_helpers.py` - Data processing and caching functions
+  - `utils/performance.py` - Performance optimization utilities
 
 ### Data Architecture
 - **Database Engine**: Flexible database support with SQLite for development and PostgreSQL for production
 - **Connection Management**: Environment variable-based configuration with fallback to SQLite
 - **Models**: Comprehensive data models covering:
   - User management and authentication
-  - Supplier and vendor information
-  - Raw materials and finished products
+  - Supplier and vendor information (with PDF certification attachment support)
+  - Raw materials and finished products (with PDF certification attachment support)
   - Formulations and bill of materials
   - Inventory and stock lot tracking
   - Production and purchase orders
   - Quality control and testing
   - Financial transactions
+- **File Management**: PDF certification attachments stored in `uploads/certifications/` (suppliers) and `uploads/certifications_raw_materials/` (raw materials)
 
 ### Core Business Features
 - **Inventory Management**: FEFO (First Expired, First Out) picking logic and stock valuation
 - **Production Planning**: MRP (Material Requirements Planning) calculations
 - **Cost Analysis**: Dynamic cost calculations for formulations and products
-- **Quality Control**: Lot tracking and quality test management
+- **Quality Control**: Lot tracking and quality test management with PDF certification support
 - **Financial Management**: Accounts payable and cash flow tracking
+- **Document Management**: 
+  - Suppliers: Up to 15 PDF certification attachments per supplier
+  - Raw Materials: Up to 10 PDF certification attachments per material
+  - Automatic file cleanup on record deletion or replacement
 
 ## External Dependencies
 
