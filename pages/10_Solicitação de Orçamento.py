@@ -31,7 +31,9 @@ with tab1:
     with Session(engine) as session:
         quote_requests = session.exec(select(QuoteRequest)).all()
         
-        if quote_requests:
+        if not quote_requests:
+            st.info("Nenhuma solicitação de orçamento cadastrada.")
+        else:
             # Create DataFrame for display
             quotes_data = []
             for qr in quote_requests:
@@ -120,8 +122,6 @@ with tab1:
                             st.error(f"Erro ao gerar PDF: {str(e)}")
                 else:
                     st.info("Nenhum item cadastrado para esta solicitação.")
-        else:
-            st.info("Nenhuma solicitação de orçamento cadastrada.")
 
 with tab2:
     st.subheader("➕ Nova Solicitação de Orçamento")
