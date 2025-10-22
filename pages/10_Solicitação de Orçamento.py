@@ -512,8 +512,7 @@ with tab2:
             # Initialize quote items in session state
             if "quote_items" not in st.session_state:
                 st.session_state.quote_items = [{"type": "Matéria-Prima", "name": "", "chemical_name": "", "commercial_name": "", 
-                                               "min_qty": 0.0, "uom": "KG", "unit_price": 0.0, "total_price": 0.0, 
-                                               "validity": None, "lead_time": None}]
+                                               "min_qty": 0.0}]
             
             # Form for quote request data
             with st.form("new_quote_request"):
@@ -553,37 +552,37 @@ with tab2:
             # Display quote items
             for i, item in enumerate(st.session_state.quote_items):
                 st.markdown(f"**Item {i+1}**")
-                item_col1, item_col2, item_col3, item_col4 = st.columns(4)
+                item_col1, item_col2 = st.columns([3, 1])
                 
                 with item_col1:
-                    item["type"] = st.selectbox(f"Tipo {i+1}", ["Matéria-Prima", "Insumo"], 
-                                              index=0 if item["type"] == "Matéria-Prima" else 1, key=f"quote_type_{i}")
-                    item["name"] = st.text_input(f"Nome do {'Produto' if item['type'] == 'Insumo' else 'Item'} {i+1}", 
-                                               value=item["name"], key=f"quote_name_{i}")
+                    sub_col1, sub_col2, sub_col3, sub_col4 = st.columns(4)
                     
-                    if item["type"] == "Matéria-Prima":
-                        item["chemical_name"] = st.text_input(f"Nome Químico {i+1}", 
-                                                            value=item["chemical_name"], key=f"quote_chem_{i}")
-                        item["commercial_name"] = st.text_input(f"Nome Comercial {i+1}", 
-                                                              value=item["commercial_name"], key=f"quote_comm_{i}")
+                    with sub_col1:
+                        item["type"] = st.selectbox(f"Tipo {i+1}", ["Matéria-Prima", "Insumo"], 
+                                                  index=0 if item["type"] == "Matéria-Prima" else 1, key=f"quote_type_{i}")
+                    
+                    with sub_col2:
+                        item["name"] = st.text_input(f"Nome do {'Produto' if item['type'] == 'Insumo' else 'Item'} {i+1}", 
+                                                   value=item["name"], key=f"quote_name_{i}")
+                    
+                    with sub_col3:
+                        if item["type"] == "Matéria-Prima":
+                            item["chemical_name"] = st.text_input(f"Nome Químico {i+1}", 
+                                                                value=item.get("chemical_name", ""), key=f"quote_chem_{i}")
+                        else:
+                            item["chemical_name"] = ""
+                    
+                    with sub_col4:
+                        if item["type"] == "Matéria-Prima":
+                            item["commercial_name"] = st.text_input(f"Nome Comercial {i+1}", 
+                                                                  value=item.get("commercial_name", ""), key=f"quote_comm_{i}")
+                        else:
+                            item["commercial_name"] = ""
+                    
+                    item["min_qty"] = st.number_input(f"Quantidade Desejada {i+1}", min_value=0.0, value=item["min_qty"], 
+                                                    step=0.1, key=f"quote_qty_{i}")
                 
                 with item_col2:
-                    item["min_qty"] = st.number_input(f"Qtd Mínima {i+1}", min_value=0.0, value=item["min_qty"], 
-                                                    step=0.1, key=f"quote_qty_{i}")
-                    item["uom"] = st.selectbox(f"UOM {i+1}", ["KG", "G", "L", "ML", "UN"], 
-                                             index=["KG", "G", "L", "ML", "UN"].index(item["uom"]), key=f"quote_uom_{i}")
-                    item["unit_price"] = st.number_input(f"Preço Unit. {i+1}", min_value=0.0, value=item["unit_price"], 
-                                                       step=0.01, key=f"quote_uprice_{i}")
-                
-                with item_col3:
-                    item["total_price"] = st.number_input(f"Total c/ Imposto {i+1}", min_value=0.0, value=item["total_price"], 
-                                                        step=0.01, key=f"quote_tprice_{i}")
-                    item["validity"] = st.number_input(f"Validade (dias) {i+1}", min_value=0, value=item["validity"] or 0, 
-                                                     step=1, key=f"quote_validity_{i}")
-                    item["lead_time"] = st.number_input(f"Lead Time (dias) {i+1}", min_value=0, value=item["lead_time"] or 0, 
-                                                      step=1, key=f"quote_lead_{i}")
-                
-                with item_col4:
                     st.write("")  # Spacing
                     st.write("")  # Spacing
                     if st.button("🗑️ Remover", key=f"quote_del_{i}"):
@@ -593,13 +592,8 @@ with tab2:
             # Add new item button
             if st.button("➕ Adicionar Item"):
                 st.session_state.quote_items.append({"type": "Matéria-Prima", "name": "", "chemical_name": "", "commercial_name": "", 
-                                                   "min_qty": 0.0, "uom": "KG", "unit_price": 0.0, "total_price": 0.0, 
-                                                   "validity": None, "lead_time": None})
+                                                   "min_qty": 0.0})
                 st.rerun()
-            
-            # Calculate total
-            total_quote_value = sum(item["total_price"] for item in st.session_state.quote_items if item["name"] and item["total_price"] > 0)
-            st.info(f"💰 Valor Total da Solicitação: R$ {total_quote_value:.2f}")
             
             if submitted:
                     if not code:
@@ -635,14 +629,14 @@ with tab2:
                                                 quote_request_id=new_quote.id,
                                                 item_type=item["type"],
                                                 item_name=item["name"],
-                                                chemical_name=item["chemical_name"] if item["chemical_name"] else None,
-                                                commercial_name=item["commercial_name"] if item["commercial_name"] else None,
+                                                chemical_name=item.get("chemical_name") if item.get("chemical_name") else None,
+                                                commercial_name=item.get("commercial_name") if item.get("commercial_name") else None,
                                                 min_quantity=item["min_qty"],
-                                                unit_price=item["unit_price"],
-                                                total_price_with_tax=item["total_price"],
-                                                validity_days=item["validity"] if item["validity"] and item["validity"] > 0 else None,
-                                                lead_time_days=item["lead_time"] if item["lead_time"] and item["lead_time"] > 0 else None,
-                                                uom=item["uom"]
+                                                unit_price=0.0,
+                                                total_price_with_tax=0.0,
+                                                validity_days=None,
+                                                lead_time_days=None,
+                                                uom="KG"
                                             )
                                             session.add(quote_item)
                                     
