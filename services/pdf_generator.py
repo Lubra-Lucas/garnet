@@ -2,7 +2,7 @@
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import cm
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from datetime import datetime
@@ -68,7 +68,20 @@ def generate_quote_request_pdf(quote_request, supplier, items):
         alignment=TA_LEFT
     )
     
-    # Cabeçalho da empresa
+    # Cabeçalho da empresa com logo
+    logo_path = "attached_assets/WhatsApp Image 2025-10-22 at 16.59.19_1761163206748.jpeg"
+    
+    if os.path.exists(logo_path):
+        try:
+            # Adicionar logo com tamanho controlado
+            logo = Image(logo_path, width=4*cm, height=2*cm)
+            logo.hAlign = 'CENTER'
+            story.append(logo)
+            story.append(Spacer(1, 0.3*cm))
+        except Exception as e:
+            # Se houver erro ao carregar a imagem, continua sem ela
+            print(f"Erro ao carregar logo: {e}")
+    
     story.append(Paragraph("GARNET INDÚSTRIA DE COSMÉTICOS LTDA", title_style))
     story.append(Spacer(1, 0.5*cm))
     
