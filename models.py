@@ -2,6 +2,11 @@
 from datetime import date, datetime
 from typing import Optional
 from sqlmodel import SQLModel, Field, Relationship
+import pytz
+
+# Function to get current datetime in São Paulo timezone
+def get_current_datetime():
+    return datetime.now(pytz.timezone("America/Sao_Paulo"))
 
 class User(SQLModel, table=True):
     """User model for authentication and authorization"""
@@ -10,7 +15,7 @@ class User(SQLModel, table=True):
     name: str
     role: str = Field(default="viewer")  # viewer, operator, manager
     password_hash: str
-    created_at: Optional[datetime] = Field(default_factory=datetime.now)
+    created_at: Optional[datetime] = Field(default_factory=get_current_datetime)
     is_active: bool = Field(default=True)
 
 class Supplier(SQLModel, table=True):
@@ -28,7 +33,7 @@ class Supplier(SQLModel, table=True):
     certification_file_path: Optional[str] = None  # Path to uploaded certification PDF file
     notes: Optional[str] = None
     status: str = Field(default="ativo")
-    created_at: Optional[datetime] = Field(default_factory=datetime.now)
+    created_at: Optional[datetime] = Field(default_factory=get_current_datetime)
 
 class RawMaterial(SQLModel, table=True):
     """Raw Material model"""
@@ -45,7 +50,7 @@ class RawMaterial(SQLModel, table=True):
     location: Optional[str] = None
     certification_file_path: Optional[str] = None  # Path to uploaded certification PDF files (JSON list)
     status: str = Field(default="ativo")
-    created_at: Optional[datetime] = Field(default_factory=datetime.now)
+    created_at: Optional[datetime] = Field(default_factory=get_current_datetime)
 
 class Product(SQLModel, table=True):
     """Finished Product model"""
@@ -58,7 +63,7 @@ class Product(SQLModel, table=True):
     unit_uom: str = Field(default="G")  # G, ML, UN
     std_batch_weight: float = Field(default=1500.0)  # gramas (1,5 kg)
     status: str = Field(default="ativo")
-    created_at: Optional[datetime] = Field(default_factory=datetime.now)
+    created_at: Optional[datetime] = Field(default_factory=get_current_datetime)
 
 class Formulation(SQLModel, table=True):
     """Product formulation/recipe model"""
@@ -66,7 +71,7 @@ class Formulation(SQLModel, table=True):
     product_id: int = Field(foreign_key="product.id")
     version: str = Field(default="v1")
     state: str = Field(default="rascunho")  # rascunho/aprovada/obsoleta
-    created_at: Optional[datetime] = Field(default_factory=datetime.now)
+    created_at: Optional[datetime] = Field(default_factory=get_current_datetime)
     approved_by: Optional[str] = None
     approved_at: Optional[datetime] = None
 
@@ -92,7 +97,7 @@ class StockLot(SQLModel, table=True):
     avg_cost: Optional[float] = None
     location: Optional[str] = None
     received_date: Optional[date] = Field(default_factory=date.today)
-    created_at: Optional[datetime] = Field(default_factory=datetime.now)
+    created_at: Optional[datetime] = Field(default_factory=get_current_datetime)
 
 class ProductionOrder(SQLModel, table=True):
     """Production order model"""
@@ -105,7 +110,7 @@ class ProductionOrder(SQLModel, table=True):
     end_date: Optional[date] = None
     workcenter: Optional[str] = None
     status: str = Field(default="Planejada")  # Planejada, Em Produção, Concluída, Cancelada
-    created_at: Optional[datetime] = Field(default_factory=datetime.now)
+    created_at: Optional[datetime] = Field(default_factory=get_current_datetime)
     created_by: Optional[str] = None
 
 class PurchaseOrder(SQLModel, table=True):
@@ -117,7 +122,7 @@ class PurchaseOrder(SQLModel, table=True):
     status: str = Field(default="Aberto")  # Aberto, Enviado, Recebido, Cancelado
     payment_terms: Optional[str] = None
     total_value: float = Field(default=0.0)
-    created_at: Optional[datetime] = Field(default_factory=datetime.now)
+    created_at: Optional[datetime] = Field(default_factory=get_current_datetime)
 
 class PurchaseItem(SQLModel, table=True):
     """Purchase order line items"""
@@ -146,7 +151,7 @@ class Payable(SQLModel, table=True):
     installment_number: Optional[int] = None  # Current installment number (1, 2, 3...)
     total_installments: Optional[int] = None  # Total number of installments
     parent_payable_id: Optional[int] = Field(default=None, foreign_key="payable.id")  # Reference to parent if installment
-    created_at: Optional[datetime] = Field(default_factory=datetime.now)
+    created_at: Optional[datetime] = Field(default_factory=get_current_datetime)
 
 class Receivable(SQLModel, table=True):
     """Accounts receivable model"""
@@ -163,7 +168,7 @@ class Receivable(SQLModel, table=True):
     installment_number: Optional[int] = None  # Current installment number (1, 2, 3...)
     total_installments: Optional[int] = None  # Total number of installments
     parent_receivable_id: Optional[int] = Field(default=None, foreign_key="receivable.id")  # Reference to parent if installment
-    created_at: Optional[datetime] = Field(default_factory=datetime.now)
+    created_at: Optional[datetime] = Field(default_factory=get_current_datetime)
 
 class QuoteRequest(SQLModel, table=True):
     """Quote request header model"""
@@ -173,7 +178,7 @@ class QuoteRequest(SQLModel, table=True):
     request_date: date = Field(default_factory=date.today)
     status: str = Field(default="Pendente")  # Pendente, Aprovado, Arquivado
     notes: Optional[str] = None
-    created_at: Optional[datetime] = Field(default_factory=datetime.now)
+    created_at: Optional[datetime] = Field(default_factory=get_current_datetime)
     created_by: Optional[str] = None
 
 class QuoteItem(SQLModel, table=True):
@@ -205,8 +210,8 @@ class StockMovement(SQLModel, table=True):
     reason: str  # Entrada Manual, Baixa Manual, Produção, Ajuste de Inventário, etc.
     notes: Optional[str] = None
     user: Optional[str] = None  # User who made the movement
-    movement_date: datetime = Field(default_factory=datetime.now)
-    created_at: Optional[datetime] = Field(default_factory=datetime.now)
+    movement_date: datetime = Field(default_factory=get_current_datetime)
+    created_at: Optional[datetime] = Field(default_factory=get_current_datetime)
 
 class QualityTest(SQLModel, table=True):
     """Quality control test results"""
@@ -219,4 +224,4 @@ class QualityTest(SQLModel, table=True):
     status: str = Field(default="Conforme")  # Conforme, Não Conforme
     tested_by: Optional[str] = None
     test_date: date = Field(default_factory=date.today)
-    created_at: Optional[datetime] = Field(default_factory=datetime.now)
+    created_at: Optional[datetime] = Field(default_factory=get_current_datetime)
