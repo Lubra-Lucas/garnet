@@ -452,29 +452,4 @@ with tab3:
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
 
-# Statistics section
-if st.checkbox("📊 Mostrar Estatísticas"):
-    with Session(engine) as session:
-        all_rms = session.exec(select(RawMaterial)).all()
-        
-        if all_rms:
-            stats_col1, stats_col2, stats_col3, stats_col4 = st.columns(4)
-            
-            with stats_col1:
-                st.metric("Total de MPs", len(all_rms))
-            
-            with stats_col2:
-                active_count = sum(1 for rm in all_rms if rm.status == "ativo")
-                st.metric("MPs Ativas", active_count)
-            
-            with stats_col3:
-                avg_price = sum(rm.base_price for rm in all_rms) / len(all_rms)
-                st.metric("Preço Médio", f"R$ {avg_price:.2f}")
-            
-            with stats_col4:
-                with_shelf_life = sum(1 for rm in all_rms if rm.shelf_life_days)
-                if with_shelf_life > 0:
-                    avg_shelf_life = sum(rm.shelf_life_days for rm in all_rms if rm.shelf_life_days) / with_shelf_life
-                    st.metric("Validade Média", f"{avg_shelf_life:.0f} dias")
-                else:
-                    st.metric("Validade Média", "N/A")
+
