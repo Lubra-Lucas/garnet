@@ -174,6 +174,7 @@ class QuoteRequest(SQLModel, table=True):
     """Quote request header model"""
     id: Optional[int] = Field(default=None, primary_key=True)
     code: str = Field(index=True, unique=True)
+    request_number: Optional[str] = Field(default=None, index=True)  # Número da solicitação
     supplier_id: int = Field(foreign_key="supplier.id")
     request_date: date = Field(default_factory=date.today)
     status: str = Field(default="Pendente")  # Pendente, Aprovado, Arquivado
