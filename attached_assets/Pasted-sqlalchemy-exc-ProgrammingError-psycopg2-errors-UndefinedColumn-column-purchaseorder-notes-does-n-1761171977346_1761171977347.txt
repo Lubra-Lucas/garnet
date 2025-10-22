@@ -1,0 +1,25 @@
+sqlalchemy.exc.ProgrammingError: (psycopg2.errors.UndefinedColumn) column purchaseorder.notes does not exist LINE 1: ...seorder.payment_terms, purchaseorder.total_value, purchaseor... ^ [SQL: SELECT purchaseorder.id, purchaseorder.code, purchaseorder.supplier_id, purchaseorder.order_date, purchaseorder.status, purchaseorder.payment_terms, purchaseorder.total_value, purchaseorder.notes, purchaseorder.created_at, supplier.name FROM purchaseorder JOIN supplier ON purchaseorder.supplier_id = supplier.id ORDER BY purchaseorder.created_at DESC] (Background on this error at: https://sqlalche.me/e/20/f405)
+Traceback:
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/streamlit/runtime/scriptrunner/exec_code.py", line 128, in exec_func_with_error_handling
+    result = func()
+             ^^^^^^
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/streamlit/runtime/scriptrunner/script_runner.py", line 667, in code_to_exec
+    _mpa_v1(self._main_script_path)
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/streamlit/runtime/scriptrunner/script_runner.py", line 165, in _mpa_v1
+    page.run()
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/streamlit/navigation/page.py", line 300, in run
+    exec(code, module.__dict__)  # noqa: S102
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+File "/home/runner/workspace/pages/9_Compras e Pedidos.py", line 63, in <module>
+    results = session.exec(query.order_by(PurchaseOrder.created_at.desc())).all()
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlmodel/orm/session.py", line 66, in exec
+    results = super().execute(
+              ^^^^^^^^^^^^^^^^
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2365, in execute
+    return self._execute_internal(
+           ^^^^^^^^^^^^^^^^^^^^^^^
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/sqlalchemy/orm/session.py", line 2251, in _execute_internal
+    result: Result[Any] = compile_state_cls.orm_execute_statement(
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+File "/home/runner/workspace/.pythonlibs/lib/python3.11/site-packages/s
