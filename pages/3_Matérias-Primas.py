@@ -94,12 +94,13 @@ with tab1:
                 "Status": rm.status
             })
         
-        df = pd.DataFrame(rm_data)
+        # Remove Validade column
+        df_display = df.drop(columns=["Validade (dias)"])
         
         # Display as interactive table
         if has_permission("manager"):
             edited_df = st.data_editor(
-                df,
+                df_display,
                 hide_index=True,
                 use_container_width=True,
                 disabled=["ID", "Código"],
@@ -135,7 +136,7 @@ with tab1:
                     st.success("Alterações salvas com sucesso!")
                     st.rerun()
         else:
-            st.dataframe(df, hide_index=True, use_container_width=True)
+            st.dataframe(df_display, hide_index=True, use_container_width=True)
         
         # Detailed view section
         st.markdown("---")
