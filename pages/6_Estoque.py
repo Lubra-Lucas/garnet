@@ -42,7 +42,7 @@ with tab1:
             .where(StockLot.qty > 0)
             .where(RawMaterial.status == "ativo")
         ).all()
-        
+
         valid_pa_lots = session.exec(
             select(StockLot)
             .join(Product, StockLot.item_id == Product.id)
@@ -50,7 +50,7 @@ with tab1:
             .where(StockLot.qty > 0)
             .where(Product.status == "ativo")
         ).all()
-        
+
         total_lots = valid_mp_lots + valid_pa_lots
         approved_lots = [lot for lot in total_lots if lot.status == "Aprovado"]
 
@@ -192,7 +192,7 @@ with tab1:
         else:
             st.info("Nenhuma matéria-prima cadastrada encontrada.")
 
-    
+
 
 with tab2:
     st.subheader("Estoque de Matérias-Primas")
@@ -264,13 +264,13 @@ with tab2:
                     else:
                         with Session(engine) as session:
                             lot_to_update = session.get(StockLot, selected_lot_data[0].id)
-                            
+
                             if lot_to_update and lot_to_update.qty >= baixa_qty:
                                 old_qty = lot_to_update.qty
                                 lot_to_update.qty -= baixa_qty
-                                
+
                                 session.commit()
-                                
+
                                 # Register movement
                                 movement = StockMovement(
                                     movement_type="Saída",
@@ -287,7 +287,7 @@ with tab2:
                                 )
                                 session.add(movement)
                                 session.commit()
-                                
+
                                 # Success message with details
                                 st.success(f"✅ Baixa registrada com sucesso!")
                                 st.info(f"""
@@ -340,6 +340,17 @@ with tab2:
                     st.caption("Status: Aprovado (automático)")
 
                 entrada_localizacao = st.text_input("Localização", placeholder="Ex: Almoxarifado A - Prateleira 1", key="entrada_local")
+                
+                # Add file uploader for certifications
+                st.markdown("### 📄 Certificações (PDF)")
+                st.caption("Anexe os arquivos PDF das certificações. Limite de 10 arquivos.")
+                certificacoes_files = st.file_uploader(
+                    "Selecione os arquivos PDF", 
+                    type="pdf", 
+                    accept_multiple_files=True, 
+                    key="certificacoes_uploader",
+                    help="Anexe até 10 arquivos PDF. Arquivos grandes podem demorar para carregar."
+                )
 
                 # Submit button - this was missing!
                 submitted = st.form_submit_button("💾 **Confirmar Entrada**", use_container_width=True)
@@ -372,8 +383,31 @@ with tab2:
                                 # Always update cost to current raw material price
                                 existing_lot.avg_cost = selected_rm.base_price
 
+                                # Handle certifications
+                                if certificacoes_files:
+                                    if existing_lot.certification_file_path:
+                                        try:
+                                            import json
+                                            current_certs = json.loads(existing_lot.certification_file_path)
+                                            if not isinstance(current_certs, list):
+                                                current_certs = [current_certs]
+                                        except:
+                                            current_certs = []
+                                    else:
+                                        current_certs = []
+                                    
+                                    new_certs = [file.name for file in certificacoes_files]
+                                    
+                                    # Limit to 10 certifications
+                                    combined_certs = current_certs + new_certs
+                                    if len(combined_certs) > 10:
+                                        st.warning("Limite de 10 certificações atingido. As certificações mais recentes foram adicionadas.")
+                                        combined_certs = combined_certs[-10:]
+                                        
+                                    existing_lot.certification_file_path = json.dumps(combined_certs)
+
                                 session.commit()
-                                
+
                                 # Register movement
                                 movement = StockMovement(
                                     movement_type="Entrada",
@@ -390,7 +424,7 @@ with tab2:
                                 )
                                 session.add(movement)
                                 session.commit()
-                                
+
                                 st.success(f"✅ Quantidade adicionada ao lote '{entrada_lote}'! Quantidade anterior: {old_qty} {existing_lot.uom} → Nova quantidade: {existing_lot.qty} {existing_lot.uom}")
                                 st.rerun()
                             else:
@@ -406,10 +440,18 @@ with tab2:
                                     avg_cost=selected_rm.base_price,  # Always use current price from raw material
                                     location=entrada_localizacao if entrada_localizacao else None
                                 )
+                                
+                                # Handle certifications for new lot
+                                if certificacoes_files:
+                                    cert_names = [file.name for file in certificacoes_files]
+                                    if len(cert_names) > 10:
+                                        st.warning("Limite de 10 certificações atingido. As certificações mais recentes foram salvas.")
+                                        cert_names = cert_names[-10:]
+                                    new_lot.certification_file_path = json.dumps(cert_names)
 
                                 session.add(new_lot)
                                 session.commit()
-                                
+
                                 # Register movement
                                 movement = StockMovement(
                                     movement_type="Entrada",
@@ -466,67 +508,80 @@ with tab2:
 
         results = session.exec(query.order_by(RawMaterial.code)).all()
 
-    if results:
-        stock_data = []
-        for lot, rm_code, rm_name, supplier_name in results:
-            value = lot.qty * (lot.avg_cost or 0)
+        if results:
+            stock_data = []
+            for lot, rm_code, rm_name, supplier_name in results:
+                value = lot.qty * (lot.avg_cost or 0)
 
-            stock_data.append({
-                "ID": lot.id,
-                "Código MP": rm_code,
-                "Nome": rm_name,
-                "Lote": lot.lot_code,
-                "Quantidade": lot.qty,
-                "UOM": lot.uom,
-                "Validade": lot.expiry.strftime("%d/%m/%Y") if lot.expiry else "N/A",
-                "Status": lot.status,
-                "Localização": lot.location or "N/A",
-                "Custo Médio": f"R$ {lot.avg_cost:.2f}" if lot.avg_cost else "N/A",
-                "Valor Total": f"R$ {value:.2f}",
-                "Fornecedor": supplier_name or "N/A"
-            })
+                # Check for certifications
+                cert_count = 0
+                if lot.certification_file_path:
+                    try:
+                        import json
+                        cert_paths = json.loads(lot.certification_file_path)
+                        if isinstance(cert_paths, list):
+                            cert_count = len(cert_paths)
+                        else:
+                            cert_count = 1
+                    except:
+                        cert_count = 1
 
-        df = pd.DataFrame(stock_data)
+                stock_data.append({
+                    "ID": lot.id,
+                    "Código MP": rm_code,
+                    "Nome": rm_name,
+                    "Lote": lot.lot_code,
+                    "Quantidade": lot.qty,
+                    "UOM": lot.uom,
+                    "Validade": lot.expiry.strftime("%d/%m/%Y") if lot.expiry else "N/A",
+                    "Status": lot.status,
+                    "Localização": lot.location or "N/A",
+                    "Custo Médio": f"R$ {lot.avg_cost:.2f}" if lot.avg_cost else "N/A",
+                    "Valor Total": f"R$ {value:.2f}",
+                    "Fornecedor": supplier_name or "N/A",
+                    "Certificações": f"📄 {cert_count}" if cert_count > 0 else "-"
+                })
 
-        # Editable table for managers
-        if has_permission("operator"):
-            edited_df = st.data_editor(
-                df,
-                hide_index=True,
-                use_container_width=True,
-                disabled=["ID", "Código MP", "Nome", "Lote", "Fornecedor"],
-                column_config={
-                    "Status": st.column_config.SelectboxColumn(
-                        "Status",
-                        options=["Aprovado", "Quarentena", "Rejeitado"],
-                        required=True
-                    ),
-                    "Quantidade": st.column_config.NumberColumn(
-                        "Quantidade",
-                        min_value=0.0,
-                        step=0.1
-                    )
-                }
-            )
+            df = pd.DataFrame(stock_data)
 
-            if st.button("💾 Salvar Alterações"):
-                with Session(engine) as session:
-                    for idx, row in edited_df.iterrows():
-                        lot = session.get(StockLot, row["ID"])
-                        if lot:
-                            lot.qty = row["Quantidade"]
-                            lot.status = row["Status"]
-                            lot.location = row["Localização"] if row["Localização"] != "N/A" else None
+            # Editable table for managers
+            if has_permission("operator"):
+                edited_df = st.data_editor(
+                    df,
+                    hide_index=True,
+                    use_container_width=True,
+                    disabled=["ID", "Código MP", "Nome", "Lote", "Fornecedor", "Certificações"],
+                    column_config={
+                        "Status": st.column_config.SelectboxColumn(
+                            "Status",
+                            options=["Aprovado", "Quarentena", "Rejeitado"],
+                            required=True
+                        ),
+                        "Quantidade": st.column_config.NumberColumn(
+                            "Quantidade",
+                            min_value=0.0,
+                            step=0.1
+                        )
+                    }
+                )
 
-                    session.commit()
-                    st.success("Alterações salvas com sucesso!")
-                    st.rerun()
+                if st.button("💾 Salvar Alterações"):
+                    with Session(engine) as session:
+                        for idx, row in edited_df.iterrows():
+                            lot = session.get(StockLot, row["ID"])
+                            if lot:
+                                lot.qty = row["Quantidade"]
+                                lot.status = row["Status"]
+                                lot.location = row["Localização"] if row["Localização"] != "N/A" else None
+
+                        session.commit()
+                        st.success("Alterações salvas com sucesso!")
+                        st.rerun()
+            else:
+                st.dataframe(df, hide_index=True, use_container_width=True)
+
         else:
-            st.dataframe(df, hide_index=True, use_container_width=True)
-
-
-    else:
-        st.info("Nenhum estoque de matéria-prima encontrado.")
+            st.info("Nenhum estoque de matéria-prima encontrado.")
 
 with tab3:
     st.subheader("Estoque de Produtos Acabados")
@@ -628,7 +683,7 @@ with tab4:
 
                 # Cleanup button
                 cleanup_confirm = st.checkbox("Confirmo que desejo remover todos os lotes órfãos")
-                
+
                 if cleanup_confirm:
                     if st.button("🗑️ Confirmar Limpeza", type="secondary", help="Remove todos os lotes que referenciam itens excluídos"):
                         try:
@@ -659,7 +714,7 @@ with tab4:
         # Get expiring lots but filter to only include lots with active items
         from datetime import timedelta
         cutoff_date = date.today() + timedelta(days=days_ahead)
-        
+
         # Get expiring MP lots with active raw materials only
         expiring_mp_lots = session.exec(
             select(StockLot, RawMaterial.code, RawMaterial.name_usual)
@@ -671,7 +726,7 @@ with tab4:
             .where(StockLot.qty > 0)
             .where(RawMaterial.status == "ativo")  # Only active raw materials
         ).all()
-        
+
         # Get expiring PA lots with active products only
         expiring_pa_lots = session.exec(
             select(StockLot, Product.code, Product.name)
@@ -685,7 +740,7 @@ with tab4:
         ).all()
 
         all_expiring_lots = []
-        
+
         # Process MP lots
         for lot, rm_code, rm_name in expiring_mp_lots:
             days_to_expire = (lot.expiry - date.today()).days if lot.expiry else 0
@@ -699,7 +754,7 @@ with tab4:
                 "Status": lot.status,
                 "Localização": lot.location or "N/A"
             })
-        
+
         # Process PA lots
         for lot, product_code, product_name in expiring_pa_lots:
             days_to_expire = (lot.expiry - date.today()).days if lot.expiry else 0
@@ -752,7 +807,7 @@ with tab4:
             .where(StockLot.status == "Quarentena")
             .where(RawMaterial.status == "ativo")
         ).all()
-        
+
         # Get quarantine PA lots with active products only
         quarantine_pa_lots = session.exec(
             select(StockLot, Product.code, Product.name)
@@ -761,14 +816,14 @@ with tab4:
             .where(StockLot.status == "Quarentena")
             .where(Product.status == "ativo")
         ).all()
-        
+
         total_quarantine = len(quarantine_mp_lots) + len(quarantine_pa_lots)
 
         if total_quarantine > 0:
             st.warning(f"⚠️ {total_quarantine} lotes em quarentena aguardando análise:")
 
             quarantine_data = []
-            
+
             # Process MP lots
             for lot, rm_code, rm_name in quarantine_mp_lots:
                 quarantine_data.append({
@@ -778,7 +833,7 @@ with tab4:
                     "Quantidade": f"{lot.qty} {lot.uom}",
                     "Data Recebimento": lot.received_date.strftime("%d/%m/%Y") if lot.received_date else "N/A"
                 })
-            
+
             # Process PA lots
             for lot, product_code, product_name in quarantine_pa_lots:
                 quarantine_data.append({
@@ -800,10 +855,10 @@ with tab5:
 
     # Filter by date range
     col_filter1, col_filter2 = st.columns(2)
-    
+
     with col_filter1:
         date_from = st.date_input("Data Inicial:", value=date.today() - timedelta(days=30))
-    
+
     with col_filter2:
         date_to = st.date_input("Data Final:", value=date.today())
 
@@ -826,9 +881,9 @@ with tab5:
             for po, product_code, product_name in completed_pos:
                 # Calculate what would have been consumed using MRP
                 requirements = mrp_requirements(session, po.product_id, po.qty_to_produce)
-                
+
                 total_materials = len(requirements)
-                
+
                 # Calcular custo apenas para managers
                 if has_permission("manager"):
                     estimated_cost = 0.0
@@ -837,7 +892,7 @@ with tab5:
                         if rm:
                             from services.business import material_cost_unit
                             estimated_cost += material_cost_unit(rm, req["required_qty"], req["uom"])
-                    
+
                     consumption_history.append({
                         "Data": po.end_date.strftime("%d/%m/%Y") if po.end_date else "N/A",
                         "Ordem de Produção": po.code,
@@ -866,28 +921,28 @@ with tab5:
             if has_permission("manager"):
                 total_cost = sum(float(row["Custo Estimado"].replace("R$ ", "").replace(",", "")) for row in consumption_history)
                 summary_col1, summary_col2, summary_col3 = st.columns(3)
-                
+
                 with summary_col1:
                     st.metric("Total de Ordens", len(completed_pos))
-                
+
                 with summary_col2:
                     st.metric("Unidades Produzidas", f"{total_units:.0f}")
-                
+
                 with summary_col3:
                     st.metric("Custo Total Estimado", f"R$ {total_cost:,.2f}")
             else:
                 summary_col1, summary_col2 = st.columns(2)
-                
+
                 with summary_col1:
                     st.metric("Total de Ordens", len(completed_pos))
-                
+
                 with summary_col2:
                     st.metric("Unidades Produzidas", f"{total_units:.0f}")
 
             # Detail view for selected order
             st.markdown("---")
             st.subheader("🔍 Detalhamento por Ordem")
-            
+
             if consumption_history:
                 selected_po_code = st.selectbox(
                     "Selecione uma ordem para ver o detalhamento:",
@@ -895,17 +950,17 @@ with tab5:
                 )
 
                 selected_po = next(po for po, _, _ in completed_pos if po.code == selected_po_code)
-                
+
                 # Calculate and show detailed MRP for this order
                 detailed_requirements = mrp_requirements(session, selected_po.product_id, selected_po.qty_to_produce)
-                
+
                 if detailed_requirements:
                     st.markdown(f"**Consumo estimado para ordem {selected_po_code}:**")
-                    
+
                     detail_data = []
                     for req in detailed_requirements:
                         rm = session.get(RawMaterial, req["raw_material_id"])
-                        
+
                         if has_permission("manager"):
                             cost = 0.0
                             if rm:
@@ -941,10 +996,10 @@ with tab5:
                 export_data = []
                 for po, product_code, product_name in completed_pos:
                     requirements = mrp_requirements(session, po.product_id, po.qty_to_produce)
-                    
+
                     for req in requirements:
                         rm = session.get(RawMaterial, req["raw_material_id"])
-                        
+
                         if has_permission("manager"):
                             cost = 0.0
                             if rm:
@@ -981,13 +1036,13 @@ with tab5:
 
                 if export_data:
                     export_df = pd.DataFrame(export_data)
-                    
+
                     # Create Excel file
                     from io import BytesIO
                     output = BytesIO()
                     with pd.ExcelWriter(output, engine='openpyxl') as writer:
                         export_df.to_excel(writer, sheet_name='Historico_Consumo', index=False)
-                    
+
                     st.download_button(
                         label="📥 Download Excel",
                         data=output.getvalue(),
@@ -1183,7 +1238,7 @@ with tab6:
 
                                                 st.success(f"""
                                                 ✅ **Movimentação excluída com sucesso!**
-                                                
+
                                                 **Detalhes da Reversão:**
                                                 - **Lote:** {lot.lot_code}
                                                 - **Estoque {action_description}**
@@ -1194,10 +1249,10 @@ with tab6:
                                         else:
                                             # Lot not found - still delete the orphaned movement
                                             st.warning(f"⚠️ Lote '{movement_to_delete.lot_code}' não encontrado. A movimentação será excluída sem ajuste de estoque.")
-                                            
+
                                             session.delete(movement_to_delete)
                                             session.commit()
-                                            
+
                                             st.success("✅ Movimentação órfã excluída com sucesso!")
                                             st.rerun()
 

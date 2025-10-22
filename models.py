@@ -97,6 +97,7 @@ class StockLot(SQLModel, table=True):
     avg_cost: Optional[float] = None
     location: Optional[str] = None
     received_date: Optional[date] = Field(default_factory=date.today)
+    certification_file_path: Optional[str] = None  # Path to uploaded certification PDF files (JSON list)
     created_at: Optional[datetime] = Field(default_factory=get_current_datetime)
 
 class ProductionOrder(SQLModel, table=True):
