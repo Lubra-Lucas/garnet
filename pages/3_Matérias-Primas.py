@@ -174,6 +174,59 @@ with tab1:
             st.text(f"Preço Base: R$ {selected_rm.base_price:.2f}")
             st.text(f"Localização: {selected_rm.location or 'N/A'}")
         
+        # Display certification files if they exist
+        if selected_rm.certification_file_path:
+            st.markdown("---")
+            st.markdown("**Arquivos de Certificação**")
+            import json
+            import os
+            try:
+                # Try to parse as JSON list
+                cert_paths = json.loads(selected_rm.certification_file_path)
+                if isinstance(cert_paths, list):
+                    cert_cols = st.columns(min(len(cert_paths), 5))
+                    for idx, cert_path in enumerate(cert_paths):
+                        col_idx = idx % 5
+                        with cert_cols[col_idx]:
+                            if os.path.exists(cert_path):
+                                with open(cert_path, "rb") as file:
+                                    st.download_button(
+                                        label=f"📄 Cert {idx+1}",
+                                        data=file.read(),
+                                        file_name=f"certificacao_{selected_rm.code}_{idx+1}.pdf",
+                                        mime="application/pdf",
+                                        key=f"download_cert_{selected_rm.id}_{idx}",
+                                        use_container_width=True
+                                    )
+                            else:
+                                st.text(f"Arquivo {idx+1} não encontrado")
+                else:
+                    # Old format - single file
+                    if os.path.exists(selected_rm.certification_file_path):
+                        with open(selected_rm.certification_file_path, "rb") as file:
+                            st.download_button(
+                                label="📄 Baixar Certificação PDF",
+                                data=file.read(),
+                                file_name=f"certificacao_{selected_rm.code}.pdf",
+                                mime="application/pdf",
+                                use_container_width=True
+                            )
+                    else:
+                        st.text("Arquivo não encontrado")
+            except json.JSONDecodeError:
+                # Old format - single file path string
+                if os.path.exists(selected_rm.certification_file_path):
+                    with open(selected_rm.certification_file_path, "rb") as file:
+                        st.download_button(
+                            label="📄 Baixar Certificação PDF",
+                            data=file.read(),
+                            file_name=f"certificacao_{selected_rm.code}.pdf",
+                            mime="application/pdf",
+                            use_container_width=True
+                        )
+                else:
+                    st.text("Arquivo não encontrado")
+        
         # Cost calculator
         st.markdown("---")
         st.subheader("🧮 Calculadora de Custos")
@@ -228,6 +281,20 @@ with tab2:
                     base_unit = st.selectbox("Unidade Base *", ["KG", "G", "L", "ML", "UN"])
                     base_price = st.number_input("Preço Base (R$) *", min_value=0.0, value=0.0, step=0.01)
                 
+                # Upload certifications
+                st.markdown("**Certificações (PDF)**")
+                uploaded_certifications = st.file_uploader(
+                    "Anexar certificações (PDF) - máximo 10",
+                    type=['pdf'],
+                    accept_multiple_files=True,
+                    help="Selecione até 10 arquivos PDF com certificações da matéria-prima",
+                    key="new_rm_certifications"
+                )
+                
+                if uploaded_certifications and len(uploaded_certifications) > 10:
+                    st.error("Limite de 10 arquivos excedido. Por favor, selecione no máximo 10 arquivos.")
+                    uploaded_certifications = uploaded_certifications[:10]
+                
                 submitted = st.form_submit_button("💾 Cadastrar Matéria-Prima", use_container_width=True)
                 
                 if submitted:
@@ -244,20 +311,50 @@ with tab2:
                                 if existing:
                                     st.error("Já existe uma matéria-prima com este código.")
                                 else:
+                                    # Handle file uploads
+                                    import json
+                                    import os
+                                    from datetime import datetime
+                                    
+                                    certification_file_path = None
+                                    if uploaded_certifications:
+                                        # Create uploads directory if it doesn't exist
+                                        upload_dir = "uploads/certifications_raw_materials"
+                                        os.makedirs(upload_dir, exist_ok=True)
+                                        
+                                        # Save files
+                                        certification_file_paths = []
+                                        for idx, uploaded_file in enumerate(uploaded_certifications[:10]):
+                                            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                                            safe_code = code.replace("/", "_").replace("\\", "_")
+                                            file_name = f"{safe_code}_cert_{idx+1}_{timestamp}.pdf"
+                                            file_path = os.path.join(upload_dir, file_name)
+                                            
+                                            with open(file_path, "wb") as f:
+                                                f.write(uploaded_file.getbuffer())
+                                            
+                                            certification_file_paths.append(file_path)
+                                        
+                                        certification_file_path = json.dumps(certification_file_paths)
+                                    
                                     rm_data = {
                                         "code": code,
                                         "name_usual": name_usual,
                                         "name_chemical": name_chemical if name_chemical else None,
                                         "supplier_id": supplier_id,
                                         "base_unit": base_unit,
-                                        "base_price": base_price
+                                        "base_price": base_price,
+                                        "certification_file_path": certification_file_path
                                     }
                                     
                                     new_rm = RawMaterial(**rm_data)
                                     session.add(new_rm)
                                     session.commit()
                                     
-                                    st.success(f"Matéria-prima '{code}' cadastrada com sucesso!")
+                                    success_msg = f"Matéria-prima '{code}' cadastrada com sucesso!"
+                                    if uploaded_certifications:
+                                        success_msg += f" {len(uploaded_certifications)} certificação(ões) anexada(s)."
+                                    st.success(success_msg)
                                     st.rerun()
                         
                         except Exception as e:
@@ -312,20 +409,99 @@ with tab2:
                                 edit_status = st.selectbox("Status", ["ativo", "inativo"], 
                                                          index=0 if selected_material.status == "ativo" else 1)
                             
+                            # Show current certification files if exist
+                            if selected_material.certification_file_path:
+                                import json
+                                try:
+                                    cert_paths = json.loads(selected_material.certification_file_path)
+                                    if isinstance(cert_paths, list):
+                                        st.info(f"📄 {len(cert_paths)} certificação(ões) atual(is)")
+                                    else:
+                                        st.info(f"📄 Certificação atual: {os.path.basename(selected_material.certification_file_path)}")
+                                except json.JSONDecodeError:
+                                    st.info(f"📄 Certificação atual: {os.path.basename(selected_material.certification_file_path)}")
+                            
+                            # Upload new certifications
+                            edit_uploaded_certifications = st.file_uploader(
+                                "Substituir certificações (PDF) - máximo 10",
+                                type=['pdf'],
+                                accept_multiple_files=True,
+                                help="Deixe vazio para manter as certificações atuais",
+                                key=f"edit_cert_{selected_material.id}"
+                            )
+                            
+                            if edit_uploaded_certifications and len(edit_uploaded_certifications) > 10:
+                                st.error("Limite de 10 arquivos excedido. Por favor, selecione no máximo 10 arquivos.")
+                                edit_uploaded_certifications = edit_uploaded_certifications[:10]
+                            
                             if st.form_submit_button("💾 Salvar Alterações", use_container_width=True):
                                 if not edit_name_usual:
                                     st.error("Nome Usual é obrigatório.")
                                 else:
                                     try:
+                                        import json
+                                        import os
+                                        from datetime import datetime
+                                        
+                                        # Handle certification files
+                                        certification_file_path = selected_material.certification_file_path
+                                        if edit_uploaded_certifications:
+                                            # Delete old files if exist
+                                            if certification_file_path:
+                                                try:
+                                                    old_paths = json.loads(certification_file_path)
+                                                    if isinstance(old_paths, list):
+                                                        for old_path in old_paths:
+                                                            if os.path.exists(old_path):
+                                                                try:
+                                                                    os.remove(old_path)
+                                                                except:
+                                                                    pass
+                                                    else:
+                                                        if os.path.exists(certification_file_path):
+                                                            try:
+                                                                os.remove(certification_file_path)
+                                                            except:
+                                                                pass
+                                                except json.JSONDecodeError:
+                                                    if os.path.exists(certification_file_path):
+                                                        try:
+                                                            os.remove(certification_file_path)
+                                                        except:
+                                                            pass
+                                            
+                                            # Create uploads directory if it doesn't exist
+                                            upload_dir = "uploads/certifications_raw_materials"
+                                            os.makedirs(upload_dir, exist_ok=True)
+                                            
+                                            # Save new files
+                                            certification_file_paths = []
+                                            for idx, uploaded_file in enumerate(edit_uploaded_certifications[:10]):
+                                                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                                                safe_code = selected_material.code.replace("/", "_").replace("\\", "_")
+                                                file_name = f"{safe_code}_cert_{idx+1}_{timestamp}.pdf"
+                                                file_path = os.path.join(upload_dir, file_name)
+                                                
+                                                with open(file_path, "wb") as f:
+                                                    f.write(uploaded_file.getbuffer())
+                                                
+                                                certification_file_paths.append(file_path)
+                                            
+                                            certification_file_path = json.dumps(certification_file_paths)
+                                        
                                         selected_material.name_usual = edit_name_usual
                                         selected_material.name_chemical = edit_name_chemical if edit_name_chemical else None
                                         selected_material.supplier_id = edit_supplier_id
                                         selected_material.base_unit = edit_base_unit
                                         selected_material.base_price = edit_base_price
                                         selected_material.status = edit_status
+                                        selected_material.certification_file_path = certification_file_path
                                         
                                         session.commit()
-                                        st.success("Matéria-prima atualizada com sucesso!")
+                                        success_msg = "Matéria-prima atualizada com sucesso!"
+                                        if edit_uploaded_certifications:
+                                            success_msg += f" {len(edit_uploaded_certifications)} nova(s) certificação(ões) anexada(s)."
+                                        st.success(success_msg)
                                         st.rerun()
                                     
                                     except Exception as e:
@@ -367,6 +543,33 @@ with tab2:
                         if confirm_delete:
                             if st.button("🗑️ CONFIRMAR EXCLUSÃO", type="secondary", use_container_width=True):
                                 try:
+                                    import json
+                                    import os
+                                    
+                                    # Delete certification files if they exist
+                                    if selected_delete_material.certification_file_path:
+                                        try:
+                                            cert_paths = json.loads(selected_delete_material.certification_file_path)
+                                            if isinstance(cert_paths, list):
+                                                for cert_path in cert_paths:
+                                                    if os.path.exists(cert_path):
+                                                        try:
+                                                            os.remove(cert_path)
+                                                        except:
+                                                            pass
+                                            else:
+                                                if os.path.exists(selected_delete_material.certification_file_path):
+                                                    try:
+                                                        os.remove(selected_delete_material.certification_file_path)
+                                                    except:
+                                                        pass
+                                        except json.JSONDecodeError:
+                                            if os.path.exists(selected_delete_material.certification_file_path):
+                                                try:
+                                                    os.remove(selected_delete_material.certification_file_path)
+                                                except:
+                                                    pass
+                                    
                                     # First, get all stock lots related to this raw material
                                     from models import StockLot
                                     related_lots = session.exec(
