@@ -181,6 +181,9 @@ class QuoteRequest(SQLModel, table=True):
     notes: Optional[str] = None
     created_at: Optional[datetime] = Field(default_factory=get_current_datetime)
     created_by: Optional[str] = None
+    
+    # Relationship
+    items: list["QuoteItem"] = Relationship(back_populates="quote_request")
 
 class QuoteItem(SQLModel, table=True):
     """Quote request line items"""
@@ -196,6 +199,9 @@ class QuoteItem(SQLModel, table=True):
     validity_days: Optional[int] = None
     lead_time_days: Optional[int] = None
     uom: str = Field(default="KG")
+    
+    # Relationship
+    quote_request: Optional["QuoteRequest"] = Relationship(back_populates="items")
 
 class StockMovement(SQLModel, table=True):
     """Stock movement tracking for entries and withdrawals"""
