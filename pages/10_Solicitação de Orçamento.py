@@ -363,143 +363,143 @@ with tab2:
             if not suppliers:
                 st.warning("⚠️ Nenhum fornecedor cadastrado. Por favor, cadastre fornecedores primeiro.")
             else:
-            with st.form("new_quote_request_form", clear_on_submit=True):
-                col1, col2 = st.columns(2)
-                
-                with col1:
-                    request_number = st.text_input("Número da Solicitação *", placeholder="Ex: SOL-001")
+                with st.form("new_quote_request_form", clear_on_submit=True):
+                    col1, col2 = st.columns(2)
                     
-                    supplier_options = {s.id: s.name for s in suppliers}
-                    selected_supplier_id = st.selectbox(
-                        "Fornecedor *",
-                        options=list(supplier_options.keys()),
-                        format_func=lambda x: supplier_options[x]
-                    )
-                
-                with col2:
-                    request_date = st.date_input("Data da Solicitação *", value=datetime.now())
-                    status = st.selectbox("Status", ["Pendente", "Enviada", "Em Análise", "Respondida", "Cancelada"])
-                
-                notes = st.text_area("Observações", placeholder="Observações gerais sobre a solicitação...")
-                
-                st.markdown("---")
-                st.markdown("#### Itens da Solicitação")
-                
-                # Initialize items in session state
-                if "quote_items" not in st.session_state:
-                    st.session_state.quote_items = []
-                
-                # Add item section
-                st.markdown("**Adicionar Item**")
-                
-                item_col1, item_col2, item_col3, item_col4 = st.columns([2, 2, 2, 2])
-                
-                with item_col1:
-                    item_type = st.selectbox("Tipo *", ["Matéria-Prima", "Insumo", "Embalagem", "Outro"], key="new_item_type")
-                
-                with item_col2:
-                    item_name = st.text_input("Nome do Item *", placeholder="Ex: Óleo Essencial", key="new_item_name")
-                
-                with item_col3:
-                    chemical_name = st.text_input("Nome Químico", placeholder="Ex: Citrus aurantium", key="new_chemical_name")
-                
-                with item_col4:
-                    commercial_name = st.text_input("Nome Comercial", placeholder="Ex: OE Laranja Doce", key="new_commercial_name")
-                
-                quantity_col, unit_col, add_col = st.columns([2, 1, 1])
-                
-                with quantity_col:
-                    quantity = st.number_input("Quantidade *", min_value=0.0, step=1.0, key="new_quantity")
-                
-                with unit_col:
-                    unit = st.selectbox("Unidade *", ["KG", "UN"], key="new_unit")
-                
-                with add_col:
-                    st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-                    if st.form_submit_button("➕ Adicionar Item", use_container_width=True):
-                        if item_name and quantity > 0:
-                            st.session_state.quote_items.append({
-                                "item_type": item_type,
-                                "item_name": item_name,
-                                "chemical_name": chemical_name,
-                                "commercial_name": commercial_name,
-                                "quantity": quantity,
-                                "unit": unit
-                            })
-                            st.rerun()
-                        else:
-                            st.error("Preencha o nome do item e a quantidade.")
-                
-                # Display added items
-                if st.session_state.quote_items:
-                    st.markdown("**Itens Adicionados:**")
+                    with col1:
+                        request_number = st.text_input("Número da Solicitação *", placeholder="Ex: SOL-001")
+                        
+                        supplier_options = {s.id: s.name for s in suppliers}
+                        selected_supplier_id = st.selectbox(
+                            "Fornecedor *",
+                            options=list(supplier_options.keys()),
+                            format_func=lambda x: supplier_options[x]
+                        )
                     
-                    items_display = []
-                    for idx, item in enumerate(st.session_state.quote_items):
-                        items_display.append({
-                            "#": idx + 1,
-                            "Tipo": item["item_type"],
-                            "Nome": item["item_name"],
-                            "Químico": item["chemical_name"] or "-",
-                            "Comercial": item["commercial_name"] or "-",
-                            "Quantidade": item["quantity"],
-                            "Unidade": item.get("unit", "KG")
-                        })
+                    with col2:
+                        request_date = st.date_input("Data da Solicitação *", value=datetime.now())
+                        status = st.selectbox("Status", ["Pendente", "Enviada", "Em Análise", "Respondida", "Cancelada"])
                     
-                    st.dataframe(pd.DataFrame(items_display), use_container_width=True, hide_index=True)
+                    notes = st.text_area("Observações", placeholder="Observações gerais sobre a solicitação...")
                     
-                    if st.form_submit_button("🗑️ Limpar Todos os Itens"):
+                    st.markdown("---")
+                    st.markdown("#### Itens da Solicitação")
+                    
+                    # Initialize items in session state
+                    if "quote_items" not in st.session_state:
                         st.session_state.quote_items = []
-                        st.rerun()
-                
-                st.markdown("---")
-                
-                # Submit button
-                submitted = st.form_submit_button("💾 Salvar Solicitação", type="primary", use_container_width=True)
-                
-                if submitted:
-                    if not request_number:
-                        st.error("⚠️ Número da solicitação é obrigatório.")
-                    elif not st.session_state.quote_items:
-                        st.error("⚠️ Adicione pelo menos um item à solicitação.")
-                    else:
-                        try:
-                            # Create quote request
-                            new_quote = QuoteRequest(
-                                code=request_number,  # Usando request_number como code
-                                request_number=request_number,
-                                supplier_id=selected_supplier_id,
-                                request_date=request_date,
-                                status=status,
-                                notes=notes
-                            )
-                            
-                            session.add(new_quote)
-                            session.commit()
-                            session.refresh(new_quote)
-                            
-                            # Add items
-                            for item_data in st.session_state.quote_items:
-                                new_item = QuoteItem(
-                                    quote_request_id=new_quote.id,
-                                    item_type=item_data["item_type"],
-                                    item_name=item_data["item_name"],
-                                    chemical_name=item_data["chemical_name"],
-                                    commercial_name=item_data["commercial_name"],
-                                    min_quantity=item_data["quantity"],
-                                    uom=item_data.get("unit", "KG"),
-                                    unit_price=0.0,
-                                    total_price_with_tax=0.0
-                                )
-                                session.add(new_item)
-                            
-                            session.commit()
-                            
-                            # Clear items from session state
+                    
+                    # Add item section
+                    st.markdown("**Adicionar Item**")
+                    
+                    item_col1, item_col2, item_col3, item_col4 = st.columns([2, 2, 2, 2])
+                    
+                    with item_col1:
+                        item_type = st.selectbox("Tipo *", ["Matéria-Prima", "Insumo", "Embalagem", "Outro"], key="new_item_type")
+                    
+                    with item_col2:
+                        item_name = st.text_input("Nome do Item *", placeholder="Ex: Óleo Essencial", key="new_item_name")
+                    
+                    with item_col3:
+                        chemical_name = st.text_input("Nome Químico", placeholder="Ex: Citrus aurantium", key="new_chemical_name")
+                    
+                    with item_col4:
+                        commercial_name = st.text_input("Nome Comercial", placeholder="Ex: OE Laranja Doce", key="new_commercial_name")
+                    
+                    quantity_col, unit_col, add_col = st.columns([2, 1, 1])
+                    
+                    with quantity_col:
+                        quantity = st.number_input("Quantidade *", min_value=0.0, step=1.0, key="new_quantity")
+                    
+                    with unit_col:
+                        unit = st.selectbox("Unidade *", ["KG", "UN"], key="new_unit")
+                    
+                    with add_col:
+                        st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+                        if st.form_submit_button("➕ Adicionar Item", use_container_width=True):
+                            if item_name and quantity > 0:
+                                st.session_state.quote_items.append({
+                                    "item_type": item_type,
+                                    "item_name": item_name,
+                                    "chemical_name": chemical_name,
+                                    "commercial_name": commercial_name,
+                                    "quantity": quantity,
+                                    "unit": unit
+                                })
+                                st.rerun()
+                            else:
+                                st.error("Preencha o nome do item e a quantidade.")
+                    
+                    # Display added items
+                    if st.session_state.quote_items:
+                        st.markdown("**Itens Adicionados:**")
+                        
+                        items_display = []
+                        for idx, item in enumerate(st.session_state.quote_items):
+                            items_display.append({
+                                "#": idx + 1,
+                                "Tipo": item["item_type"],
+                                "Nome": item["item_name"],
+                                "Químico": item["chemical_name"] or "-",
+                                "Comercial": item["commercial_name"] or "-",
+                                "Quantidade": item["quantity"],
+                                "Unidade": item.get("unit", "KG")
+                            })
+                        
+                        st.dataframe(pd.DataFrame(items_display), use_container_width=True, hide_index=True)
+                        
+                        if st.form_submit_button("🗑️ Limpar Todos os Itens"):
                             st.session_state.quote_items = []
-                            
-                            st.success(f"✅ Solicitação de orçamento '{request_number}' criada com sucesso!")
                             st.rerun()
-                            
-                        except Exception as e:
-                            st.error(f"❌ Erro ao salvar solicitação: {str(e)}")
+                    
+                    st.markdown("---")
+                    
+                    # Submit button
+                    submitted = st.form_submit_button("💾 Salvar Solicitação", type="primary", use_container_width=True)
+                    
+                    if submitted:
+                        if not request_number:
+                            st.error("⚠️ Número da solicitação é obrigatório.")
+                        elif not st.session_state.quote_items:
+                            st.error("⚠️ Adicione pelo menos um item à solicitação.")
+                        else:
+                            try:
+                                # Create quote request
+                                new_quote = QuoteRequest(
+                                    code=request_number,  # Usando request_number como code
+                                    request_number=request_number,
+                                    supplier_id=selected_supplier_id,
+                                    request_date=request_date,
+                                    status=status,
+                                    notes=notes
+                                )
+                                
+                                session.add(new_quote)
+                                session.commit()
+                                session.refresh(new_quote)
+                                
+                                # Add items
+                                for item_data in st.session_state.quote_items:
+                                    new_item = QuoteItem(
+                                        quote_request_id=new_quote.id,
+                                        item_type=item_data["item_type"],
+                                        item_name=item_data["item_name"],
+                                        chemical_name=item_data["chemical_name"],
+                                        commercial_name=item_data["commercial_name"],
+                                        min_quantity=item_data["quantity"],
+                                        uom=item_data.get("unit", "KG"),
+                                        unit_price=0.0,
+                                        total_price_with_tax=0.0
+                                    )
+                                    session.add(new_item)
+                                
+                                session.commit()
+                                
+                                # Clear items from session state
+                                st.session_state.quote_items = []
+                                
+                                st.success(f"✅ Solicitação de orçamento '{request_number}' criada com sucesso!")
+                                st.rerun()
+                                
+                            except Exception as e:
+                                st.error(f"❌ Erro ao salvar solicitação: {str(e)}")
