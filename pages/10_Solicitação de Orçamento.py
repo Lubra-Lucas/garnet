@@ -54,11 +54,14 @@ with tab1:
             st.markdown("---")
             st.subheader("Detalhes da Solicitação")
             
-            selected_quote_id = st.selectbox(
-                "Selecione uma solicitação:",
-                options=[q["ID"] for q in quotes_data],
-                format_func=lambda x: next((q["Número"] for q in quotes_data if q["ID"] == x), "")
-            )
+            if len(quotes_data) > 0:
+                selected_quote_id = st.selectbox(
+                    "Selecione uma solicitação:",
+                    options=[q["ID"] for q in quotes_data],
+                    format_func=lambda x: next((q["Número"] for q in quotes_data if q["ID"] == x), "")
+                )
+            else:
+                selected_quote_id = None
             
             if selected_quote_id:
                 quote = session.get(QuoteRequest, selected_quote_id)
