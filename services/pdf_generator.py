@@ -207,7 +207,7 @@ def generate_purchase_order_pdf(purchase_order, supplier, items):
     story.append(Spacer(1, 1*cm))
     
     # Rodapé
-    texto_rodape = "Este documento constitui um pedido de compra formal."
+    texto_rodape = ""
     story.append(Paragraph(texto_rodape, normal_style))
     story.append(Spacer(1, 0.3*cm))
     
