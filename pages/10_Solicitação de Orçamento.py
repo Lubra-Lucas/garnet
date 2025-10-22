@@ -22,7 +22,10 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Tabs
+# Tabs - switch to tab2 if in edit mode
+edit_mode = st.session_state.get('edit_quote_id') is not None
+default_tab = 1 if edit_mode else 0
+
 tab1, tab2 = st.tabs(["📋 Solicitações", "➕ Nova Solicitação"])
 
 with tab1:
@@ -132,6 +135,8 @@ with tab1:
                         with action_col2:
                             if st.button("✏️ Editar Solicitação", use_container_width=True):
                                 st.session_state.edit_quote_id = selected_quote_id
+                                if "edit_quote_items" in st.session_state:
+                                    del st.session_state.edit_quote_items
                                 st.rerun()
                         
                         with action_col3:
@@ -176,9 +181,9 @@ with tab1:
 
 with tab2:
     # Check if editing mode
-    edit_mode = st.session_state.get('edit_quote_id') is not None
+    is_editing = st.session_state.get('edit_quote_id') is not None
     
-    if edit_mode:
+    if is_editing:
         st.subheader("✏️ Editar Solicitação de Orçamento")
         
         # Load quote data for editing
