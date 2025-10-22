@@ -164,6 +164,56 @@ def generate_quote_request_pdf(quote_request, supplier, items):
     story.append(table_items)
     story.append(Spacer(1, 0.7*cm))
     
+    # Tabela para preenchimento do fornecedor
+    story.append(Paragraph("<b>Para preenchimento do fornecedor:</b>", normal_style))
+    story.append(Spacer(1, 0.3*cm))
+    
+    # Cabeçalho da tabela de resposta do fornecedor
+    supplier_response_data = [["#", "INCI NAME", "EMBALAGEM MÍNIMA", "PREÇO", "VALIDADE", "LEAD TIME"]]
+    
+    # Adicionar linhas vazias correspondentes aos itens solicitados
+    for idx in range(1, len(items) + 1):
+        supplier_response_data.append([
+            str(idx),
+            "",  # INCI NAME
+            "",  # EMBALAGEM MÍNIMA
+            "",  # PREÇO
+            "",  # VALIDADE
+            ""   # LEAD TIME
+        ])
+    
+    table_supplier_response = Table(supplier_response_data, colWidths=[1*cm, 4*cm, 3.5*cm, 3*cm, 3*cm, 2*cm])
+    table_supplier_response.setStyle(TableStyle([
+        # Cabeçalho
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2E4A6B')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 9),
+        ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+        
+        # Corpo da tabela
+        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 1), (-1, -1), 10),
+        ('ALIGN', (0, 1), (0, -1), 'CENTER'),
+        ('ALIGN', (1, 1), (-1, -1), 'CENTER'),
+        
+        # Bordas
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        
+        # Padding para facilitar o preenchimento
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+        ('TOPPADDING', (0, 0), (-1, -1), 12),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+        
+        # Fundo branco para preenchimento
+        ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+    ]))
+    
+    story.append(table_supplier_response)
+    story.append(Spacer(1, 0.7*cm))
+    
     # Observações
     if quote_request.notes:
         story.append(Paragraph("<b>Observações:</b>", normal_style))
