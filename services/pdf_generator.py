@@ -200,12 +200,13 @@ def generate_quote_request_pdf(quote_request, supplier, items):
     
     # Rodapé
     story.append(Spacer(1, 1*cm))
-    texto_rodape = "Aguardamos seu retorno com a maior brevidade possível."
+    texto_rodape = ""
     story.append(Paragraph(texto_rodape, normal_style))
     story.append(Spacer(1, 0.3*cm))
     
-    texto_atenciosamente = "Atenciosamente,<br/><b>GARNET Indústria de Cosméticos LTDA</b>"
+    texto_atenciosamente = "Obrigado! <br/><b>GARNET COSMÉTICOS</b>"
     story.append(Paragraph(texto_atenciosamente, normal_style))
+
     
     # Gerar PDF
     doc.build(story)
