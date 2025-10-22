@@ -94,6 +94,8 @@ with tab1:
                 "Status": rm.status
             })
         
+        df = pd.DataFrame(rm_data)
+        
         # Remove Validade column
         df_display = df.drop(columns=["Validade (dias)"])
         
