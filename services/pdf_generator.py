@@ -117,101 +117,79 @@ def generate_quote_request_pdf(quote_request, supplier, items):
     story.append(Paragraph(texto_corpo, normal_style))
     story.append(Spacer(1, 0.5*cm))
     
-    # Tabela de itens
-    items_data = [["#", "Tipo", "Nome do Item", "Nome Químico", "Nome Comercial", "Quantidade", "Unidade"]]
+    # Tabela consolidada com todas as informações
+    # Cabeçalho: #, Produto, INCI NAME, Quantidade, Unidade, EMBALAGEM MÍNIMA, PREÇO, VALIDADE, LEAD TIME
+    consolidated_data = [[
+        "#", 
+        "Produto", 
+        "INCI NAME", 
+        "Quantidade", 
+        "Unidade", 
+        "EMBALAGEM\nMÍNIMA", 
+        "PREÇO", 
+        "VALIDADE", 
+        "LEAD TIME"
+    ]]
     
+    # Adicionar dados dos itens com campos vazios para preenchimento do fornecedor
     for idx, item in enumerate(items, 1):
-        items_data.append([
+        consolidated_data.append([
             str(idx),
-            item.item_type,
             item.item_name,
-            item.chemical_name or "-",
-            item.commercial_name or "-",
+            item.chemical_name or "",
             str(item.min_quantity),
-            item.uom
+            item.uom,
+            "",  # EMBALAGEM MÍNIMA - para fornecedor preencher
+            "",  # PREÇO - para fornecedor preencher
+            "",  # VALIDADE - para fornecedor preencher
+            ""   # LEAD TIME - para fornecedor preencher
         ])
     
-    table_items = Table(items_data, colWidths=[1*cm, 2.2*cm, 3.5*cm, 3*cm, 3*cm, 2*cm, 1.8*cm])
-    table_items.setStyle(TableStyle([
+    # Larguras das colunas ajustadas para A4 (largura útil ~17cm)
+    table_consolidated = Table(
+        consolidated_data, 
+        colWidths=[0.8*cm, 3.2*cm, 3*cm, 1.8*cm, 1.3*cm, 2.2*cm, 1.8*cm, 1.8*cm, 1.6*cm]
+    )
+    
+    table_consolidated.setStyle(TableStyle([
         # Cabeçalho
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2E4A6B')),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 9),
+        ('FONTSIZE', (0, 0), (-1, 0), 8),
         ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
-        ('WORDWRAP', (0, 0), (-1, -1), True),
+        ('VALIGN', (0, 0), (-1, 0), 'MIDDLE'),
         
         # Corpo da tabela
         ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-        ('FONTSIZE', (0, 1), (-1, -1), 9),
-        ('ALIGN', (0, 1), (0, -1), 'CENTER'),
-        ('ALIGN', (1, 1), (-1, -1), 'LEFT'),
+        ('FONTSIZE', (0, 1), (-1, -1), 8),
+        ('ALIGN', (0, 1), (0, -1), 'CENTER'),  # Coluna #
+        ('ALIGN', (1, 1), (2, -1), 'LEFT'),     # Produto e INCI NAME
+        ('ALIGN', (3, 1), (-1, -1), 'CENTER'),  # Restante centralizado
         
         # Bordas
         ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         
         # Padding
-        ('LEFTPADDING', (0, 0), (-1, -1), 6),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
-        ('TOPPADDING', (0, 0), (-1, -1), 8),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('LEFTPADDING', (0, 0), (-1, -1), 4),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+        ('TOPPADDING', (0, 0), (-1, 0), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+        ('TOPPADDING', (0, 1), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 1), (-1, -1), 10),
         
-        # Zebra striping
+        # Zebra striping para facilitar leitura
         ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F8F9FA')]),
+        
+        # Destaque visual para campos a preencher (colunas 5-8)
+        ('BACKGROUND', (5, 1), (-1, -1), colors.HexColor('#FFFEF0')),
+        
+        # Quebra de linha no cabeçalho
+        ('WORDWRAP', (0, 0), (-1, -1), True),
     ]))
     
-    story.append(table_items)
-    story.append(Spacer(1, 0.7*cm))
-    
-    # Tabela para preenchimento do fornecedor
-    story.append(Paragraph("<b></b>", normal_style))
-    story.append(Spacer(1, 0.3*cm))
-    
-    # Cabeçalho da tabela de resposta do fornecedor
-    supplier_response_data = [["#", "INCI NAME", "EMBALAGEM MÍNIMA", "PREÇO", "VALIDADE", "LEAD TIME"]]
-    
-    # Adicionar linhas vazias correspondentes aos itens solicitados
-    for idx in range(1, len(items) + 1):
-        supplier_response_data.append([
-            str(idx),
-            "",  # INCI NAME
-            "",  # EMBALAGEM MÍNIMA
-            "",  # PREÇO
-            "",  # VALIDADE
-            ""   # LEAD TIME
-        ])
-    
-    table_supplier_response = Table(supplier_response_data, colWidths=[1*cm, 4*cm, 3.5*cm, 3*cm, 3*cm, 2*cm])
-    table_supplier_response.setStyle(TableStyle([
-        # Cabeçalho
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2E4A6B')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 9),
-        ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
-        
-        # Corpo da tabela
-        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-        ('FONTSIZE', (0, 1), (-1, -1), 10),
-        ('ALIGN', (0, 1), (0, -1), 'CENTER'),
-        ('ALIGN', (1, 1), (-1, -1), 'CENTER'),
-        
-        # Bordas
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        
-        # Padding para facilitar o preenchimento
-        ('LEFTPADDING', (0, 0), (-1, -1), 6),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
-        ('TOPPADDING', (0, 0), (-1, -1), 12),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
-        
-        # Fundo branco para preenchimento
-        ('BACKGROUND', (0, 1), (-1, -1), colors.white),
-    ]))
-    
-    story.append(table_supplier_response)
+    story.append(table_consolidated)
     story.append(Spacer(1, 0.7*cm))
     
     # Observações
