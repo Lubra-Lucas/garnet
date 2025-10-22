@@ -682,22 +682,4 @@ with tab3:
                 else:
                     st.info("Nenhum fornecedor para exportar.")
 
-# Summary statistics
-if st.checkbox("📊 Mostrar Estatísticas"):
-    with Session(engine) as session:
-        total_suppliers = session.exec(select(Supplier)).all()
-        
-        if total_suppliers:
-            stats_col1, stats_col2, stats_col3 = st.columns(3)
-            
-            with stats_col1:
-                st.metric("Total de Fornecedores", len(total_suppliers))
-            
-            with stats_col2:
-                active_count = sum(1 for s in total_suppliers if s.status == "ativo")
-                st.metric("Fornecedores Ativos", active_count)
-            
-            with stats_col3:
-                with_leadtime = sum(1 for s in total_suppliers if s.avg_leadtime_days)
-                avg_leadtime = sum(s.avg_leadtime_days for s in total_suppliers if s.avg_leadtime_days) / max(with_leadtime, 1)
-                st.metric("Lead Time Médio", f"{avg_leadtime:.1f} dias")
+

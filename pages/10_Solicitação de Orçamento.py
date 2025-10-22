@@ -656,41 +656,4 @@ with tab2:
                         except Exception as e:
                             st.error(f"Erro ao criar solicitação: {str(e)}")
 
-# Statistics section
-if st.checkbox("📊 Mostrar Estatísticas"):
-    with get_session() as session:
-        all_quotes = session.exec(select(QuoteRequest)).all()
-        
-        if all_quotes:
-            stats_col1, stats_col2, stats_col3, stats_col4 = st.columns(4)
-            
-            with stats_col1:
-                st.metric("Total de Solicitações", len(all_quotes))
-            
-            with stats_col2:
-                pending_count = sum(1 for q in all_quotes if q.status == "Pendente")
-                st.metric("Pendentes", pending_count)
-            
-            with stats_col3:
-                approved_count = sum(1 for q in all_quotes if q.status == "Aprovado")
-                st.metric("Aprovadas", approved_count)
-            
-            with stats_col4:
-                archived_count = sum(1 for q in all_quotes if q.status == "Arquivado")
-                st.metric("Arquivadas", archived_count)
-            
-            # Status distribution chart
-            st.markdown("---")
-            st.subheader("📊 Distribuição por Status")
-            
-            status_counts = {"Pendente": 0, "Aprovado": 0, "Arquivado": 0}
-            for quote in all_quotes:
-                status_counts[quote.status] = status_counts.get(quote.status, 0) + 1
-            
-            status_df = pd.DataFrame(list(status_counts.items()), columns=["Status", "Quantidade"])
-            
-            import plotly.express as px
-            fig = px.pie(status_df, values="Quantidade", names="Status", title="Solicitações por Status")
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("Nenhuma solicitação de orçamento encontrada.")
+
