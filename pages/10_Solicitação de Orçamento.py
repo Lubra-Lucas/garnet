@@ -169,7 +169,7 @@ with tab2:
                 item_col1, item_col2, item_col3, item_col4 = st.columns([2, 2, 2, 2])
                 
                 with item_col1:
-                    item_type = st.selectbox("Tipo *", ["Matéria-Prima", "Embalagem", "Outro"], key="new_item_type")
+                    item_type = st.selectbox("Tipo *", ["Matéria-Prima", "Insumo", "Embalagem", "Outro"], key="new_item_type")
                 
                 with item_col2:
                     item_name = st.text_input("Nome do Item *", placeholder="Ex: Óleo Essencial", key="new_item_name")
@@ -180,10 +180,13 @@ with tab2:
                 with item_col4:
                     commercial_name = st.text_input("Nome Comercial", placeholder="Ex: OE Laranja Doce", key="new_commercial_name")
                 
-                quantity_col, add_col = st.columns([3, 1])
+                quantity_col, unit_col, add_col = st.columns([2, 1, 1])
                 
                 with quantity_col:
                     quantity = st.number_input("Quantidade *", min_value=0.0, step=1.0, key="new_quantity")
+                
+                with unit_col:
+                    unit = st.selectbox("Unidade *", ["KG", "UN"], key="new_unit")
                 
                 with add_col:
                     st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
@@ -194,7 +197,8 @@ with tab2:
                                 "item_name": item_name,
                                 "chemical_name": chemical_name,
                                 "commercial_name": commercial_name,
-                                "quantity": quantity
+                                "quantity": quantity,
+                                "unit": unit
                             })
                             st.rerun()
                         else:
@@ -212,7 +216,8 @@ with tab2:
                             "Nome": item["item_name"],
                             "Químico": item["chemical_name"] or "-",
                             "Comercial": item["commercial_name"] or "-",
-                            "Quantidade": item["quantity"]
+                            "Quantidade": item["quantity"],
+                            "Unidade": item.get("unit", "KG")
                         })
                     
                     st.dataframe(pd.DataFrame(items_display), use_container_width=True, hide_index=True)
@@ -256,6 +261,7 @@ with tab2:
                                     chemical_name=item_data["chemical_name"],
                                     commercial_name=item_data["commercial_name"],
                                     min_quantity=item_data["quantity"],
+                                    uom=item_data.get("unit", "KG"),
                                     unit_price=0.0,
                                     total_price_with_tax=0.0
                                 )
