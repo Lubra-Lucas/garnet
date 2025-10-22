@@ -642,7 +642,7 @@ with tab2:
                 
                 if selected_lot_option:
                     selected_idx = lot_options.index(selected_lot_option)
-                    selected_lot_id = df.iloc[selected_idx]["ID"]
+                    selected_lot_id = int(df.iloc[selected_idx]["ID"])  # Convert numpy.int64 to Python int
                     
                     with Session(engine) as session:
                         lot = session.get(StockLot, selected_lot_id)
