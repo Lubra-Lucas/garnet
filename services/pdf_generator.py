@@ -117,7 +117,6 @@ def generate_purchase_order_pdf(purchase_order, supplier, items):
     # Cabeçalho da tabela
     items_data = [[
         "#", 
-        "Código MP", 
         "Matéria-Prima", 
         "Quantidade", 
         "Unidade", 
@@ -134,7 +133,6 @@ def generate_purchase_order_pdf(purchase_order, supplier, items):
         
         items_data.append([
             str(idx),
-            rm_code,
             rm_name,
             f"{item.qty:.2f}",
             item.uom,
@@ -146,7 +144,7 @@ def generate_purchase_order_pdf(purchase_order, supplier, items):
     # Larguras das colunas
     table_items = Table(
         items_data, 
-        colWidths=[0.8*cm, 2*cm, 4.5*cm, 1.8*cm, 1.3*cm, 2*cm, 2*cm, 2*cm]
+        colWidths=[0.8*cm, 5.5*cm, 2*cm, 1.5*cm, 2.2*cm, 2.2*cm, 2.3*cm]
     )
     
     table_items.setStyle(TableStyle([
@@ -162,8 +160,8 @@ def generate_purchase_order_pdf(purchase_order, supplier, items):
         ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
         ('FONTSIZE', (0, 1), (-1, -1), 9),
         ('ALIGN', (0, 1), (0, -1), 'CENTER'),  # Coluna #
-        ('ALIGN', (1, 1), (2, -1), 'LEFT'),     # Código e Nome
-        ('ALIGN', (3, 1), (-1, -1), 'CENTER'),  # Restante centralizado
+        ('ALIGN', (1, 1), (1, -1), 'LEFT'),     # Nome da Matéria-Prima
+        ('ALIGN', (2, 1), (-1, -1), 'CENTER'),  # Restante centralizado
         
         # Bordas
         ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
