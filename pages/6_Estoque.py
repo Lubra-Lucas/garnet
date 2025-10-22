@@ -352,6 +352,10 @@ with tab2:
                     key="certificacoes_uploader",
                     help="Anexe até 10 arquivos PDF. Arquivos grandes podem demorar para carregar."
                 )
+                
+                if certificacoes_files and len(certificacoes_files) > 10:
+                    st.error("Limite de 10 arquivos excedido. Por favor, selecione no máximo 10 arquivos.")
+                    certificacoes_files = certificacoes_files[:10]
 
                 # Submit button - this was missing!
                 submitted = st.form_submit_button("💾 **Confirmar Entrada**", use_container_width=True)
@@ -386,9 +390,16 @@ with tab2:
 
                                 # Handle certifications
                                 if certificacoes_files:
+                                    import os
+                                    from datetime import datetime
+                                    
+                                    # Create upload directory
+                                    upload_dir = "uploads/certifications_stock_lots"
+                                    os.makedirs(upload_dir, exist_ok=True)
+                                    
+                                    # Load existing certifications
                                     if existing_lot.certification_file_path:
                                         try:
-                                            import json
                                             current_certs = json.loads(existing_lot.certification_file_path)
                                             if not isinstance(current_certs, list):
                                                 current_certs = [current_certs]
@@ -397,12 +408,30 @@ with tab2:
                                     else:
                                         current_certs = []
                                     
-                                    new_certs = [file.name for file in certificacoes_files]
+                                    # Save new certification files
+                                    new_cert_paths = []
+                                    for idx, uploaded_file in enumerate(certificacoes_files):
+                                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                                        safe_lote = entrada_lote.replace("/", "_").replace("\\", "_")
+                                        file_name = f"{safe_lote}_cert_{timestamp}_{idx+1}.pdf"
+                                        file_path = os.path.join(upload_dir, file_name)
+                                        
+                                        with open(file_path, "wb") as f:
+                                            f.write(uploaded_file.getbuffer())
+                                        
+                                        new_cert_paths.append(file_path)
                                     
-                                    # Limit to 10 certifications
-                                    combined_certs = current_certs + new_certs
+                                    # Combine and limit to 10
+                                    combined_certs = current_certs + new_cert_paths
                                     if len(combined_certs) > 10:
-                                        st.warning("Limite de 10 certificações atingido. As certificações mais recentes foram adicionadas.")
+                                        st.warning("Limite de 10 certificações atingido. As certificações mais antigas foram removidas.")
+                                        # Remove old files
+                                        for old_path in combined_certs[:-10]:
+                                            if os.path.exists(old_path):
+                                                try:
+                                                    os.remove(old_path)
+                                                except:
+                                                    pass
                                         combined_certs = combined_certs[-10:]
                                         
                                     existing_lot.certification_file_path = json.dumps(combined_certs)
@@ -444,11 +473,27 @@ with tab2:
                                 
                                 # Handle certifications for new lot
                                 if certificacoes_files:
-                                    cert_names = [file.name for file in certificacoes_files]
-                                    if len(cert_names) > 10:
-                                        st.warning("Limite de 10 certificações atingido. As certificações mais recentes foram salvas.")
-                                        cert_names = cert_names[-10:]
-                                    new_lot.certification_file_path = json.dumps(cert_names)
+                                    import os
+                                    from datetime import datetime
+                                    
+                                    # Create upload directory
+                                    upload_dir = "uploads/certifications_stock_lots"
+                                    os.makedirs(upload_dir, exist_ok=True)
+                                    
+                                    # Save certification files
+                                    cert_paths = []
+                                    for idx, uploaded_file in enumerate(certificacoes_files[:10]):
+                                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                                        safe_lote = entrada_lote.replace("/", "_").replace("\\", "_")
+                                        file_name = f"{safe_lote}_cert_{timestamp}_{idx+1}.pdf"
+                                        file_path = os.path.join(upload_dir, file_name)
+                                        
+                                        with open(file_path, "wb") as f:
+                                            f.write(uploaded_file.getbuffer())
+                                        
+                                        cert_paths.append(file_path)
+                                    
+                                    new_lot.certification_file_path = json.dumps(cert_paths)
 
                                 session.add(new_lot)
                                 session.commit()
@@ -580,6 +625,81 @@ with tab2:
                         st.rerun()
             else:
                 st.dataframe(df, hide_index=True, use_container_width=True)
+            
+            # View certifications section
+            st.markdown("---")
+            st.markdown("### 📄 Visualizar Certificações do Lote")
+            
+            # Select lot to view certifications
+            lot_options = [f"{row['Código MP']} - {row['Nome']} | Lote: {row['Lote']}" for idx, row in df.iterrows()]
+            
+            if lot_options:
+                selected_lot_option = st.selectbox(
+                    "Selecione um lote para ver as certificações:",
+                    lot_options,
+                    key="view_cert_lot"
+                )
+                
+                if selected_lot_option:
+                    selected_idx = lot_options.index(selected_lot_option)
+                    selected_lot_id = df.iloc[selected_idx]["ID"]
+                    
+                    with Session(engine) as session:
+                        lot = session.get(StockLot, selected_lot_id)
+                        
+                        if lot and lot.certification_file_path:
+                            try:
+                                import os
+                                cert_paths = json.loads(lot.certification_file_path)
+                                
+                                if isinstance(cert_paths, list):
+                                    st.success(f"✅ {len(cert_paths)} certificação(ões) encontrada(s)")
+                                    
+                                    # Display download buttons in columns
+                                    cert_cols = st.columns(min(len(cert_paths), 5))
+                                    for idx, cert_path in enumerate(cert_paths):
+                                        col_idx = idx % 5
+                                        with cert_cols[col_idx]:
+                                            if os.path.exists(cert_path):
+                                                with open(cert_path, "rb") as file:
+                                                    st.download_button(
+                                                        label=f"📄 Cert {idx+1}",
+                                                        data=file.read(),
+                                                        file_name=f"certificacao_{lot.lot_code}_{idx+1}.pdf",
+                                                        mime="application/pdf",
+                                                        key=f"download_stock_cert_{lot.id}_{idx}",
+                                                        use_container_width=True
+                                                    )
+                                            else:
+                                                st.error(f"Arquivo {idx+1} não encontrado")
+                                else:
+                                    # Old format - single file
+                                    if os.path.exists(cert_paths):
+                                        with open(cert_paths, "rb") as file:
+                                            st.download_button(
+                                                label="📄 Baixar Certificação",
+                                                data=file.read(),
+                                                file_name=f"certificacao_{lot.lot_code}.pdf",
+                                                mime="application/pdf",
+                                                use_container_width=True
+                                            )
+                                    else:
+                                        st.error("Arquivo não encontrado")
+                            except json.JSONDecodeError:
+                                # Old format - single file path string
+                                if os.path.exists(lot.certification_file_path):
+                                    with open(lot.certification_file_path, "rb") as file:
+                                        st.download_button(
+                                            label="📄 Baixar Certificação",
+                                            data=file.read(),
+                                            file_name=f"certificacao_{lot.lot_code}.pdf",
+                                            mime="application/pdf",
+                                            use_container_width=True
+                                        )
+                                else:
+                                    st.error("Arquivo não encontrado")
+                        else:
+                            st.info("Este lote não possui certificações anexadas.")
 
         else:
             st.info("Nenhum estoque de matéria-prima encontrado.")
