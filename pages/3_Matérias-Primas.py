@@ -381,6 +381,7 @@ with tab2:
                             edit_col1, edit_col2 = st.columns(2)
                             
                             with edit_col1:
+                                edit_code = st.text_input("Código *", value=selected_material.code)
                                 edit_name_usual = st.text_input("Nome Usual *", value=selected_material.name_usual)
                                 edit_name_chemical = st.text_input("Nome Químico", value=selected_material.name_chemical or "")
                                 edit_base_unit = st.selectbox("Unidade Base *", ["KG", "G", "L", "ML", "UN"], 
@@ -435,13 +436,23 @@ with tab2:
                                 edit_uploaded_certifications = edit_uploaded_certifications[:10]
                             
                             if st.form_submit_button("💾 Salvar Alterações", use_container_width=True):
-                                if not edit_name_usual:
-                                    st.error("Nome Usual é obrigatório.")
+                                if not edit_code or not edit_name_usual:
+                                    st.error("Código e Nome Usual são obrigatórios.")
                                 else:
                                     try:
                                         import json
                                         import os
                                         from datetime import datetime
+                                        
+                                        # Check if code changed and if new code already exists
+                                        if edit_code != selected_material.code:
+                                            existing_code = session.exec(
+                                                select(RawMaterial).where(RawMaterial.code == edit_code)
+                                            ).first()
+                                            
+                                            if existing_code:
+                                                st.error(f"Já existe uma matéria-prima com o código '{edit_code}'.")
+                                                st.stop()
                                         
                                         # Handle certification files
                                         certification_file_path = selected_material.certification_file_path
@@ -478,7 +489,7 @@ with tab2:
                                             certification_file_paths = []
                                             for idx, uploaded_file in enumerate(edit_uploaded_certifications[:10]):
                                                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                                                safe_code = selected_material.code.replace("/", "_").replace("\\", "_")
+                                                safe_code = edit_code.replace("/", "_").replace("\\", "_")
                                                 file_name = f"{safe_code}_cert_{idx+1}_{timestamp}.pdf"
                                                 file_path = os.path.join(upload_dir, file_name)
                                                 
@@ -489,6 +500,7 @@ with tab2:
                                             
                                             certification_file_path = json.dumps(certification_file_paths)
                                         
+                                        selected_material.code = edit_code
                                         selected_material.name_usual = edit_name_usual
                                         selected_material.name_chemical = edit_name_chemical if edit_name_chemical else None
                                         selected_material.supplier_id = edit_supplier_id
