@@ -6,7 +6,7 @@ venv/
 logs/
 *.log
 
-# Dados e backups (mantidos só no servidor)
+# Dados e backups (mantidos sÃ³ no servidor)
 data/
 backups/
 *.db
@@ -17,3 +17,10 @@ __pycache__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# ignorar bancos de dados SQLite
+*.db
+data/*.db
+*.sqlite
+*.sqlite3
+
