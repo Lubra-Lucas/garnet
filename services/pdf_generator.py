@@ -8,14 +8,15 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from datetime import datetime
 import os
 
-def generate_purchase_order_pdf(purchase_order, supplier, items):
+def generate_purchase_order_pdf(purchase_order, supplier, items, order_type="Pedido de Compra"):
     """
-    Gera um PDF formal de pedido de compra
+    Gera um PDF formal de pedido de compra ou pedido de amostra
     
     Args:
         purchase_order: Objeto PurchaseOrder com os dados do pedido
         supplier: Objeto Supplier com dados do fornecedor
         items: Lista de tuplas (PurchaseItem, código_mp, nome_mp)
+        order_type: Tipo do pedido ("Pedido de Compra" ou "Pedido de Amostra")
     
     Returns:
         str: Caminho do arquivo PDF gerado
@@ -23,8 +24,9 @@ def generate_purchase_order_pdf(purchase_order, supplier, items):
     # Criar diretório temporário se não existir
     os.makedirs("temp", exist_ok=True)
     
-    # Nome do arquivo
-    filename = f"temp/Pedido_Compra_{purchase_order.code}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+    # Nome do arquivo baseado no tipo de pedido
+    file_prefix = "Pedido_Compra" if order_type == "Pedido de Compra" else "Pedido_Amostra"
+    filename = f"temp/{file_prefix}_{purchase_order.code}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
     
     # Criar documento
     doc = SimpleDocTemplate(filename, pagesize=A4,
@@ -82,8 +84,9 @@ def generate_purchase_order_pdf(purchase_order, supplier, items):
             # Se houver erro ao carregar a imagem, continua sem ela
             print(f"Erro ao carregar logo: {e}")
     
-    # Título do pedido
-    story.append(Paragraph("PEDIDO DE COMPRA", subtitle_style))
+    # Título do pedido baseado no tipo
+    title_text = order_type.upper()
+    story.append(Paragraph(title_text, subtitle_style))
     story.append(Spacer(1, 0.3*cm))
     
     # Dados do pedido
