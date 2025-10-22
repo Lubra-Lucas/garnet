@@ -7,6 +7,7 @@ from models import StockLot, RawMaterial, Product, Supplier, ProductionOrder, St
 from services.business import fefo_pick, calculate_stock_value, check_expiring_lots, mrp_requirements
 import pandas as pd
 from datetime import date, timedelta, datetime
+import json
 
 # Require login for this page
 user = require_login()
