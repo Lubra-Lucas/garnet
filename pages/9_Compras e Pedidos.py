@@ -150,8 +150,11 @@ with tab1:
                                 ).where(PurchaseItem.po_id == selected_edit_po_id)
                             ).all()
 
+                            # Determinar tipo de pedido
+                            order_type = po_details.notes if po_details.notes in ["Pedido de Compra", "Pedido de Amostra"] else "Pedido de Compra"
+                            
                             # Generate PDF
-                            pdf_filepath = generate_purchase_order_pdf(po_details, supplier_details, po_items_details)
+                            pdf_filepath = generate_purchase_order_pdf(po_details, supplier_details, po_items_details, order_type)
 
                             # Provide download link
                             with open(pdf_filepath, "rb") as fp:
@@ -444,6 +447,9 @@ with tab2:
             st.error("Nenhuma matéria-prima ativa encontrada.")
         else:
             with st.form("new_purchase_order"):
+                # Seletor de tipo de pedido
+                order_type = st.selectbox("Tipo de Pedido *", ["Pedido de Compra", "Pedido de Amostra"])
+                
                 po_col1, po_col2 = st.columns(2)
 
                 with po_col1:
@@ -460,7 +466,9 @@ with tab2:
                             except:
                                 pass
 
-                    suggested_code = f"PC-{date.today().year}-{next_number:03d}"
+                    # Ajustar prefixo do código baseado no tipo de pedido
+                    prefix = "PC" if order_type == "Pedido de Compra" else "PA"
+                    suggested_code = f"{prefix}-{date.today().year}-{next_number:03d}"
                     code = st.text_input("Código do Pedido *", value=suggested_code)
 
                     # Supplier selection
@@ -558,7 +566,8 @@ with tab2:
                                         supplier_id=selected_supplier_id,
                                         order_date=order_date,
                                         payment_terms=payment_terms if payment_terms else None,
-                                        total_value=total_po_value
+                                        total_value=total_po_value,
+                                        notes=order_type  # Armazenar o tipo do pedido no campo notes
                                     )
                                     session.add(new_po)
                                     session.flush()  # Get the ID
