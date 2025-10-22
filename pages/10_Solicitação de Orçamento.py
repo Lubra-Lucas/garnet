@@ -54,77 +54,79 @@ with tab1:
             st.markdown("---")
             st.subheader("Detalhes da Solicitação")
             
-            if len(quotes_data) > 0:
+            # Extract options ensuring they are valid integers
+            quote_ids = [int(q["ID"]) for q in quotes_data if q["ID"] is not None]
+            
+            if quote_ids:
                 selected_quote_id = st.selectbox(
                     "Selecione uma solicitação:",
-                    options=[q["ID"] for q in quotes_data],
-                    format_func=lambda x: next((q["Número"] for q in quotes_data if q["ID"] == x), "")
+                    options=quote_ids,
+                    format_func=lambda x: next((str(q["Número"]) for q in quotes_data if q["ID"] == x), "N/A")
                 )
-            else:
-                selected_quote_id = None
-            
-            if selected_quote_id:
-                quote = session.get(QuoteRequest, selected_quote_id)
-                supplier = session.get(Supplier, quote.supplier_id)
                 
-                col1, col2, col3 = st.columns(3)
-                
-                with col1:
-                    st.metric("Número", quote.request_number)
-                    st.metric("Fornecedor", supplier.name if supplier else "N/A")
-                
-                with col2:
-                    st.metric("Data", quote.request_date.strftime("%d/%m/%Y") if quote.request_date else "")
-                    st.metric("Status", quote.status)
-                
-                with col3:
-                    st.metric("Total de Itens", len(quote.items) if quote.items else 0)
-                
-                if quote.notes:
-                    st.text_area("Observações", value=quote.notes, disabled=True, height=100)
-                
-                # Items table
-                st.markdown("#### Itens da Solicitação")
-                
-                if quote.items:
-                    items_data = []
-                    for item in quote.items:
-                        items_data.append({
-                            "Tipo": item.item_type,
-                            "Nome do Item": item.item_name,
-                            "Químico": item.chemical_name or "-",
-                            "Comercial": item.commercial_name or "-",
-                            "Quantidade": item.quantity
-                        })
+                if selected_quote_id:
+                    quote = session.get(QuoteRequest, selected_quote_id)
+                    supplier = session.get(Supplier, quote.supplier_id)
                     
-                    items_df = pd.DataFrame(items_data)
-                    st.dataframe(items_df, use_container_width=True, hide_index=True)
+                    col1, col2, col3 = st.columns(3)
                     
-                    # Generate PDF button
-                    if st.button("📄 Gerar PDF da Solicitação", type="primary"):
-                        try:
-                            pdf_path = generate_quote_request_pdf(quote, supplier, quote.items)
-                            
-                            with open(pdf_path, "rb") as pdf_file:
-                                pdf_bytes = pdf_file.read()
+                    with col1:
+                        st.metric("Número", quote.request_number)
+                        st.metric("Fornecedor", supplier.name if supplier else "N/A")
+                    
+                    with col2:
+                        st.metric("Data", quote.request_date.strftime("%d/%m/%Y") if quote.request_date else "")
+                        st.metric("Status", quote.status)
+                    
+                    with col3:
+                        st.metric("Total de Itens", len(quote.items) if quote.items else 0)
+                    
+                    if quote.notes:
+                        st.text_area("Observações", value=quote.notes, disabled=True, height=100)
+                    
+                    # Items table
+                    st.markdown("#### Itens da Solicitação")
+                    
+                    if quote.items:
+                        items_data = []
+                        for item in quote.items:
+                            items_data.append({
+                                "Tipo": item.item_type,
+                                "Nome do Item": item.item_name,
+                                "Químico": item.chemical_name or "-",
+                                "Comercial": item.commercial_name or "-",
+                                "Qtd Mínima": item.min_quantity,
+                                "Unidade": item.uom
+                            })
+                        
+                        items_df = pd.DataFrame(items_data)
+                        st.dataframe(items_df, use_container_width=True, hide_index=True)
+                        
+                        # Generate PDF button
+                        if st.button("📄 Gerar PDF da Solicitação", type="primary"):
+                            try:
+                                pdf_path = generate_quote_request_pdf(quote, supplier, quote.items)
                                 
-                            st.download_button(
-                                label="⬇️ Baixar PDF",
-                                data=pdf_bytes,
-                                file_name=f"Solicitacao_Orcamento_{quote.request_number}.pdf",
-                                mime="application/pdf"
-                            )
-                            
-                            st.success("PDF gerado com sucesso!")
-                            
-                            # Clean up temporary file
-                            if os.path.exists(pdf_path):
-                                os.remove(pdf_path)
+                                with open(pdf_path, "rb") as pdf_file:
+                                    pdf_bytes = pdf_file.read()
+                                    
+                                st.download_button(
+                                    label="⬇️ Baixar PDF",
+                                    data=pdf_bytes,
+                                    file_name=f"Solicitacao_Orcamento_{quote.request_number}.pdf",
+                                    mime="application/pdf"
+                                )
                                 
-                        except Exception as e:
-                            st.error(f"Erro ao gerar PDF: {str(e)}")
-                else:
-                    st.info("Nenhum item cadastrado para esta solicitação.")
+                                st.success("PDF gerado com sucesso!")
+                                
+                                # Clean up temporary file
+                                if os.path.exists(pdf_path):
+                                    os.remove(pdf_path)
+                                    
+                            except Exception as e:
+                                st.error(f"Erro ao gerar PDF: {str(e)}")
+                    else:
+                        st.info("Nenhum item cadastrado para esta solicitação.")
 
 with tab2:
     st.subheader("➕ Nova Solicitação de Orçamento")
@@ -141,7 +143,7 @@ with tab2:
                 with col1:
                     request_number = st.text_input("Número da Solicitação *", placeholder="Ex: SOL-001")
                     
-                    supplier_options = {s.id: f"{s.code} - {s.name}" for s in suppliers}
+                    supplier_options = {s.id: s.name for s in suppliers}
                     selected_supplier_id = st.selectbox(
                         "Fornecedor *",
                         options=list(supplier_options.keys()),
