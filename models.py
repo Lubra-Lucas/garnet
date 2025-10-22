@@ -210,8 +210,8 @@ class StockMovement(SQLModel, table=True):
     reason: str  # Entrada Manual, Baixa Manual, Produção, Ajuste de Inventário, etc.
     notes: Optional[str] = None
     user: Optional[str] = None  # User who made the movement
-    movement_date: datetime = Field(default_factory=get_current_datetime)
-    created_at: Optional[datetime] = Field(default_factory=get_current_datetime)
+    movement_date: datetime = Field(default_factory=lambda: get_current_datetime())
+    created_at: Optional[datetime] = Field(default_factory=lambda: get_current_datetime())
 
 class QualityTest(SQLModel, table=True):
     """Quality control test results"""
