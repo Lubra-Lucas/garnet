@@ -6,7 +6,11 @@ venv/
 logs/
 *.log
 
+<<<<<<< HEAD
 # Dados e backups (mantidos só no servidor)
+=======
+# Dados e backups (mantidos s� no servidor)
+>>>>>>> 93b49df (Checkpoint before assistant change: Update PDF to consolidate item and supplier information)
 data/
 backups/
 *.db
@@ -24,3 +28,8 @@ data/*.db
 *.sqlite
 *.sqlite3
 
+<<<<<<< HEAD
+=======
+
+
+>>>>>>> 93b49df (Checkpoint before assistant change: Update PDF to consolidate item and supplier information)

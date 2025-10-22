@@ -165,7 +165,7 @@ def generate_quote_request_pdf(quote_request, supplier, items):
     story.append(Spacer(1, 0.7*cm))
     
     # Tabela para preenchimento do fornecedor
-    story.append(Paragraph("<b>Para preenchimento do fornecedor:</b>", normal_style))
+    story.append(Paragraph("<b></b>", normal_style))
     story.append(Spacer(1, 0.3*cm))
     
     # Cabeçalho da tabela de resposta do fornecedor
