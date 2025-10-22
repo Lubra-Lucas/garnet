@@ -200,12 +200,21 @@ def generate_quote_request_pdf(quote_request, supplier, items):
     
     # Rodapé
     story.append(Spacer(1, 1*cm))
-    texto_rodape = ""
+    texto_rodape = "Aguardamos seu retorno."
     story.append(Paragraph(texto_rodape, normal_style))
     story.append(Spacer(1, 0.3*cm))
     
     texto_atenciosamente = "Obrigado! <br/><b>GARNET COSMÉTICOS</b>"
     story.append(Paragraph(texto_atenciosamente, normal_style))
+    story.append(Spacer(1, 0.5*cm))
+    
+    # Informações de contato
+    texto_contato = """
+    <b>Contato:</b><br/>
+    📧 Email: faleconosco@garnetcosmeticos.com.br<br/>
+    📱 WhatsApp: 11 98153-1188
+    """
+    story.append(Paragraph(texto_contato, normal_style))
 
     
     # Gerar PDF
