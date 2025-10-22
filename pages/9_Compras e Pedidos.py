@@ -145,24 +145,26 @@ with tab1:
                             po_details = session_pdf.get(PurchaseOrder, selected_edit_po_id)
                             supplier_details = session_pdf.get(Supplier, po_details.supplier_id)
                             po_items_details = session_pdf.exec(
-                                select(PurchaseItem, RawMaterial.name_usual).join(
+                                select(PurchaseItem, RawMaterial.code, RawMaterial.name_usual).join(
                                     RawMaterial, PurchaseItem.raw_material_id == RawMaterial.id
                                 ).where(PurchaseItem.po_id == selected_edit_po_id)
                             ).all()
 
                             # Generate PDF
-                            pdf_filename = f"pedido_compra_{po_details.code}.pdf"
-                            generate_purchase_order_pdf(po_details, supplier_details, po_items_details, pdf_filename)
+                            pdf_filepath = generate_purchase_order_pdf(po_details, supplier_details, po_items_details)
 
                             # Provide download link
-                            with open(pdf_filename, "rb") as fp:
+                            with open(pdf_filepath, "rb") as fp:
                                 btn = st.download_button(
-                                    label="Baixar PDF",
+                                    label="📥 Baixar PDF",
                                     data=fp,
-                                    file_name=pdf_filename,
+                                    file_name=f"Pedido_Compra_{po_details.code}.pdf",
                                     mime="application/pdf"
                                 )
-                            os.remove(pdf_filename) # Clean up the generated file
+                            
+                            # Clean up the generated file
+                            if os.path.exists(pdf_filepath):
+                                os.remove(pdf_filepath)
 
         # Edit PO form
         if st.session_state.get('show_edit_po_form') and st.session_state.get('edit_po_id'):
