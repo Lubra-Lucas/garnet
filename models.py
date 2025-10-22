@@ -122,6 +122,7 @@ class PurchaseOrder(SQLModel, table=True):
     status: str = Field(default="Aberto")  # Aberto, Enviado, Recebido, Cancelado
     payment_terms: Optional[str] = None
     total_value: float = Field(default=0.0)
+    notes: Optional[str] = None  # Campo para armazenar tipo de pedido (Pedido de Compra ou Pedido de Amostra) e outras observações
     created_at: Optional[datetime] = Field(default_factory=get_current_datetime)
 
 class PurchaseItem(SQLModel, table=True):
