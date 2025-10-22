@@ -168,6 +168,60 @@ with tab1:
                             # Clean up the generated file
                             if os.path.exists(pdf_filepath):
                                 os.remove(pdf_filepath)
+                
+                # Delete purchase order section
+                st.markdown("---")
+                st.subheader("🗑️ Excluir Pedido de Compra")
+                
+                delete_po_options = [f"{po.code} - {next(s for p, s in results if p.id == po.id)}" for po, _ in results]
+                selected_delete_po = st.selectbox("Selecione pedido para excluir:", ["Selecione..."] + delete_po_options, key="delete_po_select")
+                
+                if selected_delete_po != "Selecione...":
+                    selected_delete_po_id = next(po.id for po, _ in results if f"{po.code} - {next(s for p, s in results if p.id == po.id)}" == selected_delete_po)
+                    
+                    # Confirmation protection
+                    if not st.session_state.get('show_delete_po_confirm'):
+                        if st.button("🗑️ Excluir Pedido", type="primary", help="Clique para confirmar a exclusão"):
+                            st.session_state.show_delete_po_confirm = True
+                            st.session_state.po_to_delete_id = selected_delete_po_id
+                            st.rerun()
+                    else:
+                        with Session(engine) as session:
+                            po_to_delete = session.get(PurchaseOrder, st.session_state.po_to_delete_id)
+                            if po_to_delete:
+                                st.warning(f"⚠️ **ATENÇÃO**: Você está prestes a excluir o pedido **{po_to_delete.code}**")
+                                st.error("Esta ação não pode ser desfeita! Todos os itens do pedido também serão excluídos.")
+                                
+                                delete_col1, delete_col2 = st.columns(2)
+                                
+                                with delete_col1:
+                                    if st.button("✅ Confirmar Exclusão", type="primary"):
+                                        try:
+                                            # Delete all purchase items first
+                                            po_items = session.exec(
+                                                select(PurchaseItem).where(PurchaseItem.po_id == po_to_delete.id)
+                                            ).all()
+                                            
+                                            for item in po_items:
+                                                session.delete(item)
+                                            
+                                            # Delete purchase order
+                                            po_code = po_to_delete.code
+                                            session.delete(po_to_delete)
+                                            session.commit()
+                                            
+                                            st.success(f"Pedido {po_code} excluído com sucesso!")
+                                            st.session_state.show_delete_po_confirm = False
+                                            st.session_state.po_to_delete_id = None
+                                            st.rerun()
+                                        except Exception as e:
+                                            st.error(f"Erro ao excluir pedido: {str(e)}")
+                                
+                                with delete_col2:
+                                    if st.button("❌ Cancelar"):
+                                        st.session_state.show_delete_po_confirm = False
+                                        st.session_state.po_to_delete_id = None
+                                        st.rerun()
 
         # Edit PO form
         if st.session_state.get('show_edit_po_form') and st.session_state.get('edit_po_id'):
