@@ -527,7 +527,7 @@ with tab2:
             
             notes = st.text_area("Observações", placeholder="Observações adicionais")
             
-            submitted = st.form_submit_button("💾 Cadastrar Fornecedor", use_container_width=True)
+            submitted = st.form_submit_button("💾 Salvar", use_container_width=True)
             
             if submitted:
                 if not name:
