@@ -77,13 +77,10 @@ def generate_quote_request_pdf(quote_request, supplier, items):
             logo = Image(logo_path, width=4*cm, height=2*cm)
             logo.hAlign = 'CENTER'
             story.append(logo)
-            story.append(Spacer(1, 0.3*cm))
+            story.append(Spacer(1, 0.5*cm))
         except Exception as e:
             # Se houver erro ao carregar a imagem, continua sem ela
             print(f"Erro ao carregar logo: {e}")
-    
-    story.append(Paragraph("GARNET INDÚSTRIA DE COSMÉTICOS LTDA", title_style))
-    story.append(Spacer(1, 0.5*cm))
     
     # Título da solicitação
     story.append(Paragraph("SOLICITAÇÃO DE ORÇAMENTO", subtitle_style))
