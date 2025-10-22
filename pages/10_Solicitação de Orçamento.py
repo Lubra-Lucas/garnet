@@ -2,7 +2,7 @@
 import streamlit as st
 from sqlmodel import Session, select
 from db import engine
-from models import QuoteRequest, QuoteRequestItem, Supplier
+from models import QuoteRequest, QuoteItem, Supplier
 from auth import has_permission
 import pandas as pd
 from datetime import datetime
@@ -230,6 +230,7 @@ with tab2:
                         try:
                             # Create quote request
                             new_quote = QuoteRequest(
+                                code=request_number,  # Usando request_number como code
                                 request_number=request_number,
                                 supplier_id=selected_supplier_id,
                                 request_date=request_date,
@@ -243,13 +244,15 @@ with tab2:
                             
                             # Add items
                             for item_data in st.session_state.quote_items:
-                                new_item = QuoteRequestItem(
+                                new_item = QuoteItem(
                                     quote_request_id=new_quote.id,
                                     item_type=item_data["item_type"],
                                     item_name=item_data["item_name"],
                                     chemical_name=item_data["chemical_name"],
                                     commercial_name=item_data["commercial_name"],
-                                    quantity=item_data["quantity"]
+                                    min_quantity=item_data["quantity"],
+                                    unit_price=0.0,
+                                    total_price_with_tax=0.0
                                 )
                                 session.add(new_item)
                             
