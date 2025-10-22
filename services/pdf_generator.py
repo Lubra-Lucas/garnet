@@ -121,14 +121,15 @@ def generate_quote_request_pdf(quote_request, supplier, items):
             item.uom
         ])
     
-    table_items = Table(items_data, colWidths=[0.8*cm, 2*cm, 3*cm, 2.5*cm, 2.5*cm, 1.7*cm, 1.5*cm])
+    table_items = Table(items_data, colWidths=[1*cm, 2.2*cm, 3.5*cm, 3*cm, 3*cm, 2*cm, 1.8*cm])
     table_items.setStyle(TableStyle([
         # Cabeçalho
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2E4A6B')),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 10),
+        ('FONTSIZE', (0, 0), (-1, 0), 9),
         ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+        ('WORDWRAP', (0, 0), (-1, -1), True),
         
         # Corpo da tabela
         ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
