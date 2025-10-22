@@ -102,41 +102,267 @@ with tab1:
                         items_df = pd.DataFrame(items_data)
                         st.dataframe(items_df, use_container_width=True, hide_index=True)
                         
-                        # Generate PDF button
-                        if st.button("📄 Gerar PDF da Solicitação", type="primary"):
-                            try:
-                                pdf_path = generate_quote_request_pdf(quote, supplier, quote.items)
-                                
-                                with open(pdf_path, "rb") as pdf_file:
-                                    pdf_bytes = pdf_file.read()
+                        # Action buttons
+                        action_col1, action_col2, action_col3 = st.columns(3)
+                        
+                        with action_col1:
+                            if st.button("📄 Gerar PDF da Solicitação", type="primary", use_container_width=True):
+                                try:
+                                    pdf_path = generate_quote_request_pdf(quote, supplier, quote.items)
                                     
-                                st.download_button(
-                                    label="⬇️ Baixar PDF",
-                                    data=pdf_bytes,
-                                    file_name=f"Solicitacao_Orcamento_{quote.request_number}.pdf",
-                                    mime="application/pdf"
-                                )
-                                
-                                st.success("PDF gerado com sucesso!")
-                                
-                                # Clean up temporary file
-                                if os.path.exists(pdf_path):
-                                    os.remove(pdf_path)
+                                    with open(pdf_path, "rb") as pdf_file:
+                                        pdf_bytes = pdf_file.read()
+                                        
+                                    st.download_button(
+                                        label="⬇️ Baixar PDF",
+                                        data=pdf_bytes,
+                                        file_name=f"Solicitacao_Orcamento_{quote.request_number}.pdf",
+                                        mime="application/pdf"
+                                    )
                                     
-                            except Exception as e:
-                                st.error(f"Erro ao gerar PDF: {str(e)}")
+                                    st.success("PDF gerado com sucesso!")
+                                    
+                                    # Clean up temporary file
+                                    if os.path.exists(pdf_path):
+                                        os.remove(pdf_path)
+                                        
+                                except Exception as e:
+                                    st.error(f"Erro ao gerar PDF: {str(e)}")
+                        
+                        with action_col2:
+                            if st.button("✏️ Editar Solicitação", use_container_width=True):
+                                st.session_state.edit_quote_id = selected_quote_id
+                                st.rerun()
+                        
+                        with action_col3:
+                            if st.button("🗑️ Excluir Solicitação", use_container_width=True):
+                                st.session_state.show_delete_quote_confirm = True
+                                st.session_state.delete_quote_id = selected_quote_id
+                        
+                        # Delete confirmation dialog
+                        if st.session_state.get('show_delete_quote_confirm') and st.session_state.get('delete_quote_id') == selected_quote_id:
+                            st.markdown("---")
+                            st.markdown("### ⚠️ Confirmar Exclusão")
+                            st.error(f"**ATENÇÃO:** Tem certeza que deseja excluir a solicitação **{quote.request_number}**?")
+                            st.warning("Esta ação não pode ser desfeita e irá excluir todos os itens associados!")
+                            
+                            conf_col1, conf_col2 = st.columns(2)
+                            
+                            with conf_col1:
+                                if st.button("✅ Sim, Excluir", type="primary", use_container_width=True):
+                                    try:
+                                        # Delete all quote items first
+                                        for item in quote.items:
+                                            session.delete(item)
+                                        
+                                        # Delete the quote request
+                                        session.delete(quote)
+                                        session.commit()
+                                        
+                                        st.success(f"Solicitação {quote.request_number} excluída com sucesso!")
+                                        st.session_state.show_delete_quote_confirm = False
+                                        st.session_state.delete_quote_id = None
+                                        st.rerun()
+                                    except Exception as e:
+                                        st.error(f"Erro ao excluir solicitação: {str(e)}")
+                            
+                            with conf_col2:
+                                if st.button("❌ Cancelar", use_container_width=True):
+                                    st.session_state.show_delete_quote_confirm = False
+                                    st.session_state.delete_quote_id = None
+                                    st.rerun()
                     else:
                         st.info("Nenhum item cadastrado para esta solicitação.")
 
 with tab2:
-    st.subheader("➕ Nova Solicitação de Orçamento")
+    # Check if editing mode
+    edit_mode = st.session_state.get('edit_quote_id') is not None
     
-    with Session(engine) as session:
-        suppliers = session.exec(select(Supplier)).all()
+    if edit_mode:
+        st.subheader("✏️ Editar Solicitação de Orçamento")
         
-        if not suppliers:
-            st.warning("⚠️ Nenhum fornecedor cadastrado. Por favor, cadastre fornecedores primeiro.")
-        else:
+        # Load quote data for editing
+        with Session(engine) as session:
+            edit_quote = session.get(QuoteRequest, st.session_state.edit_quote_id)
+            
+            if not edit_quote:
+                st.error("Solicitação não encontrada!")
+                if st.button("← Voltar"):
+                    st.session_state.edit_quote_id = None
+                    st.rerun()
+            else:
+                # Populate session state with existing data
+                if "edit_quote_items" not in st.session_state:
+                    st.session_state.edit_quote_items = []
+                    for item in edit_quote.items:
+                        st.session_state.edit_quote_items.append({
+                            "item_type": item.item_type,
+                            "item_name": item.item_name,
+                            "chemical_name": item.chemical_name,
+                            "commercial_name": item.commercial_name,
+                            "quantity": item.min_quantity,
+                            "unit": item.uom
+                        })
+                
+                suppliers = session.exec(select(Supplier)).all()
+                
+                with st.form("edit_quote_request_form"):
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        request_number = st.text_input("Número da Solicitação *", value=edit_quote.request_number)
+                        
+                        supplier_options = {s.id: s.name for s in suppliers}
+                        selected_supplier_id = st.selectbox(
+                            "Fornecedor *",
+                            options=list(supplier_options.keys()),
+                            format_func=lambda x: supplier_options[x],
+                            index=list(supplier_options.keys()).index(edit_quote.supplier_id) if edit_quote.supplier_id in supplier_options.keys() else 0
+                        )
+                    
+                    with col2:
+                        request_date = st.date_input("Data da Solicitação *", value=edit_quote.request_date)
+                        status = st.selectbox("Status", ["Pendente", "Enviada", "Em Análise", "Respondida", "Cancelada"], 
+                                            index=["Pendente", "Enviada", "Em Análise", "Respondida", "Cancelada"].index(edit_quote.status) if edit_quote.status in ["Pendente", "Enviada", "Em Análise", "Respondida", "Cancelada"] else 0)
+                    
+                    notes = st.text_area("Observações", value=edit_quote.notes or "")
+                    
+                    st.markdown("---")
+                    st.markdown("#### Itens da Solicitação")
+                    
+                    # Add item section
+                    st.markdown("**Adicionar Item**")
+                    
+                    item_col1, item_col2, item_col3, item_col4 = st.columns([2, 2, 2, 2])
+                    
+                    with item_col1:
+                        item_type = st.selectbox("Tipo *", ["Matéria-Prima", "Insumo", "Embalagem", "Outro"], key="edit_item_type")
+                    
+                    with item_col2:
+                        item_name = st.text_input("Nome do Item *", key="edit_item_name")
+                    
+                    with item_col3:
+                        chemical_name = st.text_input("Nome Químico", key="edit_chemical_name")
+                    
+                    with item_col4:
+                        commercial_name = st.text_input("Nome Comercial", key="edit_commercial_name")
+                    
+                    quantity_col, unit_col, add_col = st.columns([2, 1, 1])
+                    
+                    with quantity_col:
+                        quantity = st.number_input("Quantidade *", min_value=0.0, step=1.0, key="edit_quantity")
+                    
+                    with unit_col:
+                        unit = st.selectbox("Unidade *", ["KG", "UN"], key="edit_unit")
+                    
+                    with add_col:
+                        st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+                        if st.form_submit_button("➕ Adicionar Item", use_container_width=True):
+                            if item_name and quantity > 0:
+                                st.session_state.edit_quote_items.append({
+                                    "item_type": item_type,
+                                    "item_name": item_name,
+                                    "chemical_name": chemical_name,
+                                    "commercial_name": commercial_name,
+                                    "quantity": quantity,
+                                    "unit": unit
+                                })
+                                st.rerun()
+                    
+                    # Display added items
+                    if st.session_state.edit_quote_items:
+                        st.markdown("**Itens Adicionados:**")
+                        
+                        items_display = []
+                        for idx, item in enumerate(st.session_state.edit_quote_items):
+                            items_display.append({
+                                "#": idx + 1,
+                                "Tipo": item["item_type"],
+                                "Nome": item["item_name"],
+                                "Químico": item["chemical_name"] or "-",
+                                "Comercial": item["commercial_name"] or "-",
+                                "Quantidade": item["quantity"],
+                                "Unidade": item.get("unit", "KG")
+                            })
+                        
+                        st.dataframe(pd.DataFrame(items_display), use_container_width=True, hide_index=True)
+                        
+                        if st.form_submit_button("🗑️ Limpar Todos os Itens"):
+                            st.session_state.edit_quote_items = []
+                            st.rerun()
+                    
+                    st.markdown("---")
+                    
+                    # Form buttons
+                    form_col1, form_col2 = st.columns(2)
+                    
+                    with form_col1:
+                        submitted = st.form_submit_button("💾 Salvar Alterações", type="primary", use_container_width=True)
+                    
+                    with form_col2:
+                        cancelled = st.form_submit_button("❌ Cancelar", use_container_width=True)
+                    
+                    if cancelled:
+                        st.session_state.edit_quote_id = None
+                        st.session_state.edit_quote_items = []
+                        st.rerun()
+                    
+                    if submitted:
+                        if not request_number:
+                            st.error("⚠️ Número da solicitação é obrigatório.")
+                        elif not st.session_state.edit_quote_items:
+                            st.error("⚠️ Adicione pelo menos um item à solicitação.")
+                        else:
+                            try:
+                                # Update quote request
+                                edit_quote.request_number = request_number
+                                edit_quote.supplier_id = selected_supplier_id
+                                edit_quote.request_date = request_date
+                                edit_quote.status = status
+                                edit_quote.notes = notes
+                                
+                                # Delete old items
+                                for old_item in edit_quote.items:
+                                    session.delete(old_item)
+                                
+                                session.commit()
+                                session.refresh(edit_quote)
+                                
+                                # Add new items
+                                for item_data in st.session_state.edit_quote_items:
+                                    new_item = QuoteItem(
+                                        quote_request_id=edit_quote.id,
+                                        item_type=item_data["item_type"],
+                                        item_name=item_data["item_name"],
+                                        chemical_name=item_data["chemical_name"],
+                                        commercial_name=item_data["commercial_name"],
+                                        min_quantity=item_data["quantity"],
+                                        uom=item_data.get("unit", "KG"),
+                                        unit_price=0.0,
+                                        total_price_with_tax=0.0
+                                    )
+                                    session.add(new_item)
+                                
+                                session.commit()
+                                
+                                # Clear edit state
+                                st.session_state.edit_quote_id = None
+                                st.session_state.edit_quote_items = []
+                                
+                                st.success(f"✅ Solicitação '{request_number}' atualizada com sucesso!")
+                                st.rerun()
+                                
+                            except Exception as e:
+                                st.error(f"❌ Erro ao atualizar solicitação: {str(e)}")
+    else:
+        st.subheader("➕ Nova Solicitação de Orçamento")
+        
+        with Session(engine) as session:
+            suppliers = session.exec(select(Supplier)).all()
+            
+            if not suppliers:
+                st.warning("⚠️ Nenhum fornecedor cadastrado. Por favor, cadastre fornecedores primeiro.")
+            else:
             with st.form("new_quote_request_form", clear_on_submit=True):
                 col1, col2 = st.columns(2)
                 
