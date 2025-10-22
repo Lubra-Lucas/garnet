@@ -8,6 +8,227 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from datetime import datetime
 import os
 
+def generate_purchase_order_pdf(purchase_order, supplier, items):
+    """
+    Gera um PDF formal de pedido de compra
+    
+    Args:
+        purchase_order: Objeto PurchaseOrder com os dados do pedido
+        supplier: Objeto Supplier com dados do fornecedor
+        items: Lista de tuplas (PurchaseItem, código_mp, nome_mp)
+    
+    Returns:
+        str: Caminho do arquivo PDF gerado
+    """
+    # Criar diretório temporário se não existir
+    os.makedirs("temp", exist_ok=True)
+    
+    # Nome do arquivo
+    filename = f"temp/Pedido_Compra_{purchase_order.code}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+    
+    # Criar documento
+    doc = SimpleDocTemplate(filename, pagesize=A4,
+                           rightMargin=2*cm, leftMargin=2*cm,
+                           topMargin=2*cm, bottomMargin=2*cm)
+    
+    # Container para elementos do PDF
+    story = []
+    
+    # Estilos
+    styles = getSampleStyleSheet()
+    
+    # Estilo do título
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=18,
+        textColor=colors.HexColor('#2E4A6B'),
+        spaceAfter=30,
+        alignment=TA_CENTER,
+        fontName='Helvetica-Bold'
+    )
+    
+    # Estilo do subtítulo
+    subtitle_style = ParagraphStyle(
+        'CustomSubtitle',
+        parent=styles['Heading2'],
+        fontSize=14,
+        textColor=colors.HexColor('#2E4A6B'),
+        spaceAfter=12,
+        alignment=TA_CENTER,
+        fontName='Helvetica-Bold'
+    )
+    
+    # Estilo normal
+    normal_style = ParagraphStyle(
+        'CustomNormal',
+        parent=styles['Normal'],
+        fontSize=11,
+        spaceAfter=6,
+        alignment=TA_LEFT
+    )
+    
+    # Cabeçalho da empresa com logo
+    logo_path = "attached_assets/WhatsApp Image 2025-10-22 at 16.59.19_1761163206748.jpeg"
+    
+    if os.path.exists(logo_path):
+        try:
+            # Adicionar logo com tamanho controlado
+            logo = Image(logo_path, width=4*cm, height=2*cm)
+            logo.hAlign = 'CENTER'
+            story.append(logo)
+            story.append(Spacer(1, 0.5*cm))
+        except Exception as e:
+            # Se houver erro ao carregar a imagem, continua sem ela
+            print(f"Erro ao carregar logo: {e}")
+    
+    # Título do pedido
+    story.append(Paragraph("PEDIDO DE COMPRA", subtitle_style))
+    story.append(Spacer(1, 0.3*cm))
+    
+    # Dados do pedido
+    data_pedido = [
+        ["Código do Pedido:", purchase_order.code],
+        ["Fornecedor:", supplier.name],
+        ["Data do Pedido:", purchase_order.order_date.strftime("%d/%m/%Y") if purchase_order.order_date else ""],
+        ["Status:", purchase_order.status],
+        ["Condições de Pagamento:", purchase_order.payment_terms or "N/A"]
+    ]
+    
+    table_info = Table(data_pedido, colWidths=[5*cm, 10*cm])
+    table_info.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 11),
+        ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#2E4A6B')),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+    ]))
+    
+    story.append(table_info)
+    story.append(Spacer(1, 0.5*cm))
+    
+    # Tabela de itens do pedido
+    story.append(Paragraph("<b>Itens do Pedido:</b>", normal_style))
+    story.append(Spacer(1, 0.3*cm))
+    
+    # Cabeçalho da tabela
+    items_data = [[
+        "#", 
+        "Código MP", 
+        "Matéria-Prima", 
+        "Quantidade", 
+        "Unidade", 
+        "Preço Unit.", 
+        "Total",
+        "Data Entrega"
+    ]]
+    
+    # Adicionar dados dos itens
+    total_value = 0
+    for idx, (item, rm_code, rm_name) in enumerate(items, 1):
+        line_total = item.qty * item.price
+        total_value += line_total
+        
+        items_data.append([
+            str(idx),
+            rm_code,
+            rm_name,
+            f"{item.qty:.2f}",
+            item.uom,
+            f"R$ {item.price:.2f}",
+            f"R$ {line_total:.2f}",
+            item.due_date.strftime("%d/%m/%Y") if item.due_date else "N/A"
+        ])
+    
+    # Larguras das colunas
+    table_items = Table(
+        items_data, 
+        colWidths=[0.8*cm, 2*cm, 4.5*cm, 1.8*cm, 1.3*cm, 2*cm, 2*cm, 2*cm]
+    )
+    
+    table_items.setStyle(TableStyle([
+        # Cabeçalho
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2E4A6B')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 9),
+        ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, 0), 'MIDDLE'),
+        
+        # Corpo da tabela
+        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 1), (-1, -1), 9),
+        ('ALIGN', (0, 1), (0, -1), 'CENTER'),  # Coluna #
+        ('ALIGN', (1, 1), (2, -1), 'LEFT'),     # Código e Nome
+        ('ALIGN', (3, 1), (-1, -1), 'CENTER'),  # Restante centralizado
+        
+        # Bordas
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        
+        # Padding
+        ('LEFTPADDING', (0, 0), (-1, -1), 4),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+        ('TOPPADDING', (0, 0), (-1, 0), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
+        ('TOPPADDING', (0, 1), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, 1), (-1, -1), 8),
+        
+        # Zebra striping
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F8F9FA')]),
+    ]))
+    
+    story.append(table_items)
+    story.append(Spacer(1, 0.5*cm))
+    
+    # Valor total
+    total_table_data = [
+        ["VALOR TOTAL DO PEDIDO:", f"R$ {total_value:.2f}"]
+    ]
+    
+    total_table = Table(total_table_data, colWidths=[12*cm, 4.5*cm])
+    total_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (0, 0), 'Helvetica-Bold'),
+        ('FONTNAME', (1, 0), (1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 12),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor('#2E4A6B')),
+        ('ALIGN', (0, 0), (0, 0), 'RIGHT'),
+        ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#F0F0F0')),
+        ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#2E4A6B')),
+        ('TOPPADDING', (0, 0), (-1, 0), 8),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+    ]))
+    
+    story.append(total_table)
+    story.append(Spacer(1, 1*cm))
+    
+    # Rodapé
+    texto_rodape = "Este documento constitui um pedido de compra formal."
+    story.append(Paragraph(texto_rodape, normal_style))
+    story.append(Spacer(1, 0.3*cm))
+    
+    texto_empresa = "<b>GARNET COSMÉTICOS</b>"
+    story.append(Paragraph(texto_empresa, normal_style))
+    story.append(Spacer(1, 0.5*cm))
+    
+    # Informações de contato
+    texto_contato = """
+    <b>Contato:</b><br/>
+    📧 Email: faleconosco@garnetcosmeticos.com.br<br/>
+    📱 WhatsApp: 11 98153-1188
+    """
+    story.append(Paragraph(texto_contato, normal_style))
+    
+    # Gerar PDF
+    doc.build(story)
+    
+    return filename
+
+
 def generate_quote_request_pdf(quote_request, supplier, items):
     """
     Gera um PDF formal de solicitação de orçamento
