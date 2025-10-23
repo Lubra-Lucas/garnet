@@ -453,7 +453,7 @@ def generate_formulation_pdf(formulation, product, items):
     Args:
         formulation: Objeto Formulation com os dados da formulação
         product: Objeto Product com dados do produto
-        items: Lista de tuplas (FormulaItem, código_mp, nome_mp, preço_mp)
+        items: Lista de tuplas (FormulaItem, código_mp, nome_mp, preço_mp, supplier_id, supplier_name)
     
     Returns:
         str: Caminho do arquivo PDF gerado
@@ -568,7 +568,7 @@ def generate_formulation_pdf(formulation, product, items):
     ]]
     
     # Adicionar dados dos itens
-    for idx, (item, rm_code, rm_name, rm_price) in enumerate(items, 1):
+    for idx, (item, rm_code, rm_name, rm_price, supplier_id, supplier_name) in enumerate(items, 1):
         # Calcular percentual
         item_qty_in_grams = item.qty
         if item.uom == "KG":
