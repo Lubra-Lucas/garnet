@@ -343,7 +343,7 @@ with tab1:
                                                      index=["KG", "G", "L", "ML", "UN"].index(item["uom"]), key=f"edit_po_uom_{po_to_edit.id}_{i}")
 
                         with item_col4:
-                            item["price"] = st.number_input(f"Preço {i+1}", min_value=0.0, value=item["price"], step=0.01, key=f"edit_po_price_{po_to_edit.id}_{i}")
+                            item["price"] = st.number_input(f"Valor Total {i+1}", min_value=0.0, value=item["price"], step=0.01, key=f"edit_po_price_{po_to_edit.id}_{i}")
 
                         with item_col5:
                             item["due_date"] = st.date_input(f"Entrega {i+1}", value=item["due_date"], key=f"edit_po_due_{po_to_edit.id}_{i}")
@@ -368,8 +368,8 @@ with tab1:
                         })
                         st.rerun()
 
-                    # Calculate total
-                    total_po_value = sum(item["qty"] * item["price"] for item in edit_items if item["rm_id"] and item["qty"] > 0 and item["price"] > 0)
+                    # Calculate total (price is already the total for each item)
+                    total_po_value = sum(item["price"] for item in edit_items if item["rm_id"] and item["price"] > 0)
                     st.info(f"💰 Valor Total do Pedido: R$ {total_po_value:.2f}")
 
                     # Save/Cancel buttons
@@ -456,7 +456,7 @@ with tab1:
                 total_value = 0
 
                 for item, rm_code, rm_name in items_results:
-                    line_total = item.qty * item.price
+                    line_total = item.price  # Price is already the total value
                     total_value += line_total
 
                     # Calculate received percentage
@@ -466,8 +466,7 @@ with tab1:
                         "Código MP": rm_code,
                         "Matéria-Prima": rm_name,
                         "Quantidade": f"{item.qty} {item.uom}",
-                        "Preço Unit.": f"R$ {item.price:.2f}",
-                        "Total": f"R$ {line_total:.2f}",
+                        "Valor Total": f"R$ {item.price:.2f}",
                         "Data Entrega": item.due_date.strftime("%d/%m/%Y") if item.due_date else "N/A",
                         "Recebido": f"{item.received_qty} {item.uom}",
                         "% Recebido": f"{received_pct:.1f}%"
@@ -577,13 +576,13 @@ with tab2:
                                                  index=["KG", "G", "L", "ML", "UN"].index(item["uom"]), key=f"po_uom_{i}")
 
                     with item_col4:
-                        item["price"] = st.number_input(f"Preço {i+1}", min_value=0.0, value=item["price"], step=0.01, key=f"po_price_{i}")
+                        item["price"] = st.number_input(f"Valor Total {i+1}", min_value=0.0, value=item["price"], step=0.01, key=f"po_price_{i}")
 
                     with item_col5:
                         item["due_date"] = st.date_input(f"Entrega {i+1}", value=item["due_date"], key=f"po_due_{i}")
 
-                # Calculate total
-                total_po_value = sum(item["qty"] * item["price"] for item in st.session_state.purchase_items if (item["rm_id"] or item.get("product_name")) and item["qty"] > 0 and item["price"] > 0)
+                # Calculate total (price is already the total for each item)
+                total_po_value = sum(item["price"] for item in st.session_state.purchase_items if (item["rm_id"] or item.get("product_name")) and item["price"] > 0)
                 st.info(f"💰 Valor Total do Pedido: R$ {total_po_value:.2f}")
 
                 # Form action buttons
