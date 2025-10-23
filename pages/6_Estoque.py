@@ -198,6 +198,75 @@ with tab1:
 with tab2:
     st.subheader("Estoque de Matérias-Primas")
 
+    # Add PDF generation button at the top
+    if has_permission("operator"):
+        if st.button("📄 Gerar PDF do Estoque", use_container_width=True, type="secondary"):
+            with Session(engine) as session:
+                # Get all stock data
+                query = select(StockLot, RawMaterial.code, RawMaterial.name_usual, Supplier.name).join(
+                    RawMaterial, StockLot.item_id == RawMaterial.id
+                ).outerjoin(
+                    Supplier, RawMaterial.supplier_id == Supplier.id
+                ).where(StockLot.item_type == "MP")
+
+                results = session.exec(query.order_by(RawMaterial.code)).all()
+
+                if results:
+                    stock_data = []
+                    for lot, rm_code, rm_name, supplier_name in results:
+                        value = lot.qty * (lot.avg_cost or 0)
+
+                        stock_data.append({
+                            "ID": lot.id,
+                            "Código MP": rm_code,
+                            "Nome": rm_name,
+                            "Lote": lot.lot_code,
+                            "Quantidade": lot.qty,
+                            "UOM": lot.uom,
+                            "Validade": lot.expiry.strftime("%d/%m/%Y") if lot.expiry else "N/A",
+                            "Status": lot.status,
+                            "Localização": lot.location or "N/A",
+                            "Custo Médio": f"R$ {lot.avg_cost:.2f}" if lot.avg_cost else "N/A",
+                            "Valor Total": f"R$ {value:.2f}",
+                            "Fornecedor": supplier_name or "N/A"
+                        })
+
+                    try:
+                        from services.pdf_generator import generate_stock_report_pdf
+                        
+                        # Get user role
+                        user_role = st.session_state.get("user", {}).get("role", "operator")
+                        
+                        # Generate PDF
+                        pdf_path = generate_stock_report_pdf(stock_data, user_role=user_role)
+                        
+                        # Read PDF file
+                        with open(pdf_path, "rb") as pdf_file:
+                            pdf_bytes = pdf_file.read()
+                        
+                        # Download button
+                        st.download_button(
+                            label="📥 Baixar PDF do Estoque",
+                            data=pdf_bytes,
+                            file_name=f"Relatorio_Estoque_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                            mime="application/pdf",
+                            use_container_width=True
+                        )
+                        
+                        st.success("PDF gerado com sucesso!")
+                        
+                        # Limpar arquivo temporário
+                        import os
+                        if os.path.exists(pdf_path):
+                            os.remove(pdf_path)
+                            
+                    except Exception as e:
+                        st.error(f"Erro ao gerar PDF: {str(e)}")
+                else:
+                    st.warning("Nenhum dado de estoque para gerar PDF.")
+        
+        st.markdown("---")
+
     # Add manual stock withdrawal section
     if has_permission("operator"):
         st.markdown("---")
