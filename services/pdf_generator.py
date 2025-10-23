@@ -633,12 +633,12 @@ def generate_formulation_pdf(formulation, product, items, user_role=None):
     if user_role == "manager":
         table_items = Table(
             items_data, 
-            colWidths=[0.8*cm, 2*cm, 4.5*cm, 1.8*cm, 1.3*cm, 2.2*cm, 2*cm, 1.9*cm]
+            colWidths=[0.8*cm, 2.2*cm, 4.8*cm, 1.9*cm, 1.4*cm, 2.3*cm, 2.1*cm, 2*cm]
         )
     else:
         table_items = Table(
             items_data, 
-            colWidths=[1*cm, 2.5*cm, 6*cm, 2*cm, 1.5*cm, 2.5*cm]
+            colWidths=[1*cm, 2.8*cm, 6.5*cm, 2.2*cm, 1.8*cm, 2.7*cm]
         )
     
     table_items.setStyle(TableStyle([
@@ -662,25 +662,26 @@ def generate_formulation_pdf(formulation, product, items, user_role=None):
         ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         
-        # Padding
-        ('LEFTPADDING', (0, 0), (-1, -1), 4),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 4),
-        ('TOPPADDING', (0, 0), (-1, 0), 6),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
-        ('TOPPADDING', (0, 1), (-1, -1), 8),
-        ('BOTTOMPADDING', (0, 1), (-1, -1), 8),
+        # Padding - Aumentado para melhor legibilidade
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+        ('TOPPADDING', (0, 0), (-1, 0), 8),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+        ('TOPPADDING', (0, 1), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 1), (-1, -1), 10),
         
         # Zebra striping
         ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F8F9FA')]),
     ]))
     
     story.append(table_items)
-    story.append(Spacer(1, 1*cm))
+    story.append(Spacer(1, 1.5*cm))
     
-    # Rodapé
-    texto_rodape = "<b>Observações:</b><br/>Este documento contém informação confidencial e proprietária da GARNET COSMÉTICOS."
-    story.append(Paragraph(texto_rodape, normal_style))
-    story.append(Spacer(1, 0.3*cm))
+    # Rodapé - sem mensagem de confidencialidade
+    if formulation.notes:
+        texto_rodape = f"<b>Observações:</b><br/>{formulation.notes}"
+        story.append(Paragraph(texto_rodape, normal_style))
+        story.append(Spacer(1, 0.5*cm))
     
     texto_empresa = "<b>GARNET COSMÉTICOS</b>"
     story.append(Paragraph(texto_empresa, normal_style))
