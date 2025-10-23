@@ -131,12 +131,13 @@ class PurchaseItem(SQLModel, table=True):
     """Purchase order line items"""
     id: Optional[int] = Field(default=None, primary_key=True)
     po_id: int = Field(foreign_key="purchaseorder.id")
-    raw_material_id: int = Field(foreign_key="rawmaterial.id")
+    raw_material_id: Optional[int] = Field(default=None, foreign_key="rawmaterial.id")
     qty: float
     uom: str
     price: float
     due_date: Optional[date] = None
     received_qty: float = Field(default=0.0)
+    notes: Optional[str] = None  # For sample orders product name
 
 class Payable(SQLModel, table=True):
     """Accounts payable model"""

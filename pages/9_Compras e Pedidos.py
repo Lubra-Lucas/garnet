@@ -640,7 +640,7 @@ with tab2:
 
                                     # Add purchase items
                                     for item in st.session_state.purchase_items:
-                                        if item.get("rm_id"): # For Pedido de Compra
+                                        if item.get("rm_id"):  # For Pedido de Compra
                                             purchase_item = PurchaseItem(
                                                 po_id=new_po.id,
                                                 raw_material_id=item["rm_id"],
@@ -650,19 +650,15 @@ with tab2:
                                                 due_date=item["due_date"]
                                             )
                                             session.add(purchase_item)
-                                        elif item.get("product_name"): # For Pedido de Amostra
-                                            # Creating a dummy PurchaseItem for sample orders,
-                                            # as there's no direct mapping to RawMaterial.
-                                            # Consider a separate table or a different approach if sample items need more structure.
+                                        elif item.get("product_name"):  # For Pedido de Amostra
                                             purchase_item = PurchaseItem(
                                                 po_id=new_po.id,
-                                                # raw_material_id=None, # Explicitly None or handle as special case
-                                                raw_material_id=None, # Assuming no direct RM link for samples
+                                                raw_material_id=None,
                                                 qty=item["qty"],
                                                 uom=item["uom"],
                                                 price=item["price"],
                                                 due_date=item["due_date"],
-                                                notes=f"Amostra: {item['product_name']}" # Store product name in notes
+                                                notes=f"Amostra: {item['product_name']}"
                                             )
                                             session.add(purchase_item)
 
