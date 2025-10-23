@@ -118,6 +118,35 @@ with tab1:
                             session.commit()
                             st.success("Formulação aprovada!")
                             st.rerun()
+                
+                # Botão para gerar PDF da formulação
+                if st.button("📄 Gerar PDF da Formulação", type="primary", use_container_width=True):
+                    try:
+                        from services.pdf_generator import generate_formulation_pdf
+                        import os
+                        
+                        # Gerar PDF
+                        pdf_path = generate_formulation_pdf(formulation, product, items_results)
+                        
+                        # Fornecer download
+                        with open(pdf_path, "rb") as pdf_file:
+                            pdf_bytes = pdf_file.read()
+                            
+                        st.download_button(
+                            label="⬇️ Baixar PDF da Formulação",
+                            data=pdf_bytes,
+                            file_name=f"Formulacao_{product.code}_{formulation.version}.pdf",
+                            mime="application/pdf"
+                        )
+                        
+                        st.success("PDF gerado com sucesso!")
+                        
+                        # Limpar arquivo temporário
+                        if os.path.exists(pdf_path):
+                            os.remove(pdf_path)
+                            
+                    except Exception as e:
+                        st.error(f"Erro ao gerar PDF: {str(e)}")
 
                 if items_results:
                     st.markdown("**Composição**")
