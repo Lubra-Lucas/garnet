@@ -678,7 +678,7 @@ def generate_formulation_pdf(formulation, product, items, user_role=None):
     story.append(Spacer(1, 1.5*cm))
     
     # Rodapé - sem mensagem de confidencialidade
-    if formulation.notes:
+    if hasattr(formulation, 'notes') and formulation.notes:
         texto_rodape = f"<b>Observações:</b><br/>{formulation.notes}"
         story.append(Paragraph(texto_rodape, normal_style))
         story.append(Spacer(1, 0.5*cm))

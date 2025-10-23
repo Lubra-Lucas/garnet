@@ -71,6 +71,7 @@ class Formulation(SQLModel, table=True):
     product_id: int = Field(foreign_key="product.id")
     version: str = Field(default="v1")
     state: str = Field(default="rascunho")  # rascunho/aprovada/obsoleta
+    notes: Optional[str] = None
     created_at: Optional[datetime] = Field(default_factory=get_current_datetime)
     approved_by: Optional[str] = None
     approved_at: Optional[datetime] = None
