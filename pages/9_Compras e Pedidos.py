@@ -539,13 +539,13 @@ with tab2:
                 # Dynamic purchase items
                 if "purchase_items" not in st.session_state:
                     if order_type == "Pedido de Amostra":
-                        st.session_state.purchase_items = [{"product_name": "", "qty": 0.0, "uom": "KG", "price": 0.0, "due_date": None}]
+                        st.session_state.purchase_items = [{"product_name": "", "qty": 0.01, "uom": "KG", "price": 0.0, "due_date": None}]
                     else:
-                        st.session_state.purchase_items = [{"rm_id": None, "qty": 0.0, "uom": "KG", "price": 0.0, "due_date": None}]
+                        st.session_state.purchase_items = [{"rm_id": None, "qty": 0.01, "uom": "KG", "price": 0.0, "due_date": None}]
 
                 # Display purchase items based on order type
                 for i, item in enumerate(st.session_state.purchase_items):
-                    item_col1, item_col2, item_col3, item_col4, item_col5, item_col6 = st.columns([3, 1, 1, 1, 2, 1])
+                    item_col1, item_col2, item_col3, item_col4, item_col5 = st.columns([3, 1, 1, 1, 2])
 
                     with item_col1:
                         if order_type == "Pedido de Amostra":
@@ -570,7 +570,7 @@ with tab2:
                             item["product_name"] = ""
 
                     with item_col2:
-                        item["qty"] = st.number_input(f"Qtd {i+1}", min_value=0.01, value=item["qty"], step=0.01, key=f"po_qty_{i}")
+                        item["qty"] = st.number_input(f"Qtd {i+1}", min_value=0.01, value=max(0.01, item["qty"]), step=0.01, key=f"po_qty_{i}")
 
                     with item_col3:
                         item["uom"] = st.selectbox(f"UOM {i+1}", ["KG", "G", "L", "ML", "UN"], 
@@ -582,43 +582,33 @@ with tab2:
                     with item_col5:
                         item["due_date"] = st.date_input(f"Entrega {i+1}", value=item["due_date"], key=f"po_due_{i}")
 
-                    with item_col6:
-                        # Use checkbox instead of button for deletion inside form
-                        delete_item = st.checkbox("🗑️", key=f"po_del_{i}", help="Marcar para remover")
-                        if delete_item:
-                            st.session_state[f"delete_item_{i}"] = True
-
                 # Calculate total
-                total_po_value = sum(item["qty"] * item["price"] for item in st.session_state.purchase_items if item["rm_id"] and item["qty"] > 0 and item["price"] > 0 or item.get("product_name") and item["qty"] > 0 and item["price"] > 0)
+                total_po_value = sum(item["qty"] * item["price"] for item in st.session_state.purchase_items if (item["rm_id"] or item.get("product_name")) and item["qty"] > 0 and item["price"] > 0)
                 st.info(f"💰 Valor Total do Pedido: R$ {total_po_value:.2f}")
 
-                submitted = st.form_submit_button("💾 Criar Pedido de Compra", use_container_width=True)
+                # Form action buttons
+                form_col1, form_col2, form_col3 = st.columns(3)
+                
+                with form_col1:
+                    submitted = st.form_submit_button("💾 Criar Pedido de Compra", use_container_width=True)
+                
+                with form_col2:
+                    add_item = st.form_submit_button("➕ Adicionar Item", use_container_width=True)
+                
+                with form_col3:
+                    remove_last = st.form_submit_button("🗑️ Remover Último Item", use_container_width=True)
 
-            # Handle item management outside the form
-            col_add, col_remove = st.columns(2)
-
-            with col_add:
-                if st.button("➕ Adicionar Item", use_container_width=True):
-                    if order_type == "Pedido de Amostra":
-                        st.session_state.purchase_items.append({"product_name": "", "qty": 0.0, "uom": "KG", "price": 0.0, "due_date": None})
-                    else:
-                        st.session_state.purchase_items.append({"rm_id": None, "qty": 0.0, "uom": "KG", "price": 0.0, "due_date": None})
-                    st.rerun()
-
-            with col_remove:
-                if st.button("🗑️ Remover Itens Marcados", use_container_width=True):
-                    # Remove items marked for deletion
-                    items_to_keep = []
-                    for i, item in enumerate(st.session_state.purchase_items):
-                        if not st.session_state.get(f"delete_item_{i}", False):
-                            items_to_keep.append(item)
-                        else:
-                            # Clear the deletion flag
-                            if f"delete_item_{i}" in st.session_state:
-                                del st.session_state[f"delete_item_{i}"]
-
-                    st.session_state.purchase_items = items_to_keep
-                    st.rerun()
+            # Handle add/remove items
+            if add_item:
+                if order_type == "Pedido de Amostra":
+                    st.session_state.purchase_items.append({"product_name": "", "qty": 0.01, "uom": "KG", "price": 0.0, "due_date": None})
+                else:
+                    st.session_state.purchase_items.append({"rm_id": None, "qty": 0.01, "uom": "KG", "price": 0.0, "due_date": None})
+                st.rerun()
+            
+            if remove_last and len(st.session_state.purchase_items) > 1:
+                st.session_state.purchase_items.pop()
+                st.rerun()
 
             if submitted:
                     if not code:
