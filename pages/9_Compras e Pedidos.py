@@ -135,11 +135,11 @@ with tab1:
                     if st.button("📝 Editar Itens do Pedido", use_container_width=True):
                         st.session_state.edit_po_items_id = selected_edit_po_id
                         st.session_state.show_edit_po_items = True
-                
+
                 with edit_col3:
                     if st.button("📄 Gerar PDF do Pedido", use_container_width=True):
                         selected_po_for_pdf = next(po for po, _ in results if po.id == selected_edit_po_id)
-                        
+
                         # Fetch all details for PDF generation
                         with Session(engine) as session_pdf:
                             po_details = session_pdf.get(PurchaseOrder, selected_edit_po_id)
@@ -152,7 +152,7 @@ with tab1:
 
                             # Determinar tipo de pedido
                             order_type = po_details.notes if po_details.notes in ["Pedido de Compra", "Pedido de Amostra"] else "Pedido de Compra"
-                            
+
                             # Generate PDF
                             pdf_filepath = generate_purchase_order_pdf(po_details, supplier_details, po_items_details, order_type)
 
@@ -164,21 +164,21 @@ with tab1:
                                     file_name=f"Pedido_Compra_{po_details.code}.pdf",
                                     mime="application/pdf"
                                 )
-                            
+
                             # Clean up the generated file
                             if os.path.exists(pdf_filepath):
                                 os.remove(pdf_filepath)
-                
+
                 # Delete purchase order section
                 st.markdown("---")
                 st.subheader("🗑️ Excluir Pedido de Compra")
-                
+
                 delete_po_options = [f"{po.code} - {next(s for p, s in results if p.id == po.id)}" for po, _ in results]
                 selected_delete_po = st.selectbox("Selecione pedido para excluir:", ["Selecione..."] + delete_po_options, key="delete_po_select")
-                
+
                 if selected_delete_po != "Selecione...":
                     selected_delete_po_id = next(po.id for po, _ in results if f"{po.code} - {next(s for p, s in results if p.id == po.id)}" == selected_delete_po)
-                    
+
                     # Confirmation protection
                     if not st.session_state.get('show_delete_po_confirm'):
                         if st.button("🗑️ Excluir Pedido", type="primary", help="Clique para confirmar a exclusão"):
@@ -191,9 +191,9 @@ with tab1:
                             if po_to_delete:
                                 st.warning(f"⚠️ **ATENÇÃO**: Você está prestes a excluir o pedido **{po_to_delete.code}**")
                                 st.error("Esta ação não pode ser desfeita! Todos os itens do pedido também serão excluídos.")
-                                
+
                                 delete_col1, delete_col2 = st.columns(2)
-                                
+
                                 with delete_col1:
                                     if st.button("✅ Confirmar Exclusão", type="primary"):
                                         try:
@@ -201,22 +201,22 @@ with tab1:
                                             po_items = session.exec(
                                                 select(PurchaseItem).where(PurchaseItem.po_id == po_to_delete.id)
                                             ).all()
-                                            
+
                                             for item in po_items:
                                                 session.delete(item)
-                                            
+
                                             # Delete purchase order
                                             po_code = po_to_delete.code
                                             session.delete(po_to_delete)
                                             session.commit()
-                                            
+
                                             st.success(f"Pedido {po_code} excluído com sucesso!")
                                             st.session_state.show_delete_po_confirm = False
                                             st.session_state.po_to_delete_id = None
                                             st.rerun()
                                         except Exception as e:
                                             st.error(f"Erro ao excluir pedido: {str(e)}")
-                                
+
                                 with delete_col2:
                                     if st.button("❌ Cancelar"):
                                         st.session_state.show_delete_po_confirm = False
@@ -503,7 +503,7 @@ with tab2:
             with st.form("new_purchase_order"):
                 # Seletor de tipo de pedido
                 order_type = st.selectbox("Tipo de Pedido *", ["Pedido de Compra", "Pedido de Amostra"])
-                
+
                 po_col1, po_col2 = st.columns(2)
 
                 with po_col1:
@@ -538,20 +538,39 @@ with tab2:
 
                 # Dynamic purchase items
                 if "purchase_items" not in st.session_state:
-                    st.session_state.purchase_items = [{"rm_id": None, "qty": 0.0, "uom": "KG", "price": 0.0, "due_date": None}]
+                    if order_type == "Pedido de Amostra":
+                        st.session_state.purchase_items = [{"product_name": "", "qty": 0.0, "uom": "KG", "price": 0.0, "due_date": None}]
+                    else:
+                        st.session_state.purchase_items = [{"rm_id": None, "qty": 0.0, "uom": "KG", "price": 0.0, "due_date": None}]
 
-                # Display purchase items
+                # Display purchase items based on order type
                 for i, item in enumerate(st.session_state.purchase_items):
                     item_col1, item_col2, item_col3, item_col4, item_col5, item_col6 = st.columns([3, 1, 1, 1, 2, 1])
 
                     with item_col1:
-                        rm_options = [f"{rm.code} - {rm.name_usual}" for rm in raw_materials]
-                        rm_selection = st.selectbox(f"Matéria-Prima {i+1}", ["Selecione..."] + rm_options, key=f"po_rm_{i}")
-                        if rm_selection != "Selecione...":
-                            item["rm_id"] = raw_materials[rm_options.index(rm_selection)].id
+                        if order_type == "Pedido de Amostra":
+                            # Free text field for sample requests
+                            item["product_name"] = st.text_input(
+                                f"Nome do Produto {i+1}", 
+                                value=item.get("product_name", ""),
+                                placeholder="Digite o nome do produto/amostra",
+                                key=f"po_product_{i}"
+                            )
+                            # Set rm_id to None for sample orders
+                            item["rm_id"] = None
+                        else:
+                            # Original dropdown for purchase orders
+                            rm_options = [f"{rm.code} - {rm.name_usual}" for rm in raw_materials]
+                            rm_selection = st.selectbox(f"Matéria-Prima {i+1}", ["Selecione..."] + rm_options, key=f"po_rm_{i}")
+                            if rm_selection != "Selecione...":
+                                item["rm_id"] = raw_materials[rm_options.index(rm_selection)].id
+                            else:
+                                item["rm_id"] = None
+                            # Clear product_name for purchase orders
+                            item["product_name"] = ""
 
                     with item_col2:
-                        item["qty"] = st.number_input(f"Qtd {i+1}", min_value=0.0, value=item["qty"], step=0.1, key=f"po_qty_{i}")
+                        item["qty"] = st.number_input(f"Qtd {i+1}", min_value=0.01, value=item["qty"], step=0.01, key=f"po_qty_{i}")
 
                     with item_col3:
                         item["uom"] = st.selectbox(f"UOM {i+1}", ["KG", "G", "L", "ML", "UN"], 
@@ -570,7 +589,7 @@ with tab2:
                             st.session_state[f"delete_item_{i}"] = True
 
                 # Calculate total
-                total_po_value = sum(item["qty"] * item["price"] for item in st.session_state.purchase_items if item["rm_id"] and item["qty"] > 0 and item["price"] > 0)
+                total_po_value = sum(item["qty"] * item["price"] for item in st.session_state.purchase_items if item["rm_id"] and item["qty"] > 0 and item["price"] > 0 or item.get("product_name") and item["qty"] > 0 and item["price"] > 0)
                 st.info(f"💰 Valor Total do Pedido: R$ {total_po_value:.2f}")
 
                 submitted = st.form_submit_button("💾 Criar Pedido de Compra", use_container_width=True)
@@ -580,7 +599,10 @@ with tab2:
 
             with col_add:
                 if st.button("➕ Adicionar Item", use_container_width=True):
-                    st.session_state.purchase_items.append({"rm_id": None, "qty": 0.0, "uom": "KG", "price": 0.0, "due_date": None})
+                    if order_type == "Pedido de Amostra":
+                        st.session_state.purchase_items.append({"product_name": "", "qty": 0.0, "uom": "KG", "price": 0.0, "due_date": None})
+                    else:
+                        st.session_state.purchase_items.append({"rm_id": None, "qty": 0.0, "uom": "KG", "price": 0.0, "due_date": None})
                     st.rerun()
 
             with col_remove:
@@ -601,7 +623,7 @@ with tab2:
             if submitted:
                     if not code:
                         st.error("Código do pedido é obrigatório.")
-                    elif not any(item["rm_id"] for item in st.session_state.purchase_items):
+                    elif not any(item.get("rm_id") or item.get("product_name") for item in st.session_state.purchase_items):
                         st.error("Adicione pelo menos um item ao pedido.")
                     else:
                         try:
@@ -628,7 +650,7 @@ with tab2:
 
                                     # Add purchase items
                                     for item in st.session_state.purchase_items:
-                                        if item["rm_id"] and item["qty"] > 0 and item["price"] > 0:
+                                        if item.get("rm_id"): # For Pedido de Compra
                                             purchase_item = PurchaseItem(
                                                 po_id=new_po.id,
                                                 raw_material_id=item["rm_id"],
@@ -638,12 +660,29 @@ with tab2:
                                                 due_date=item["due_date"]
                                             )
                                             session.add(purchase_item)
+                                        elif item.get("product_name"): # For Pedido de Amostra
+                                            # Creating a dummy PurchaseItem for sample orders,
+                                            # as there's no direct mapping to RawMaterial.
+                                            # Consider a separate table or a different approach if sample items need more structure.
+                                            purchase_item = PurchaseItem(
+                                                po_id=new_po.id,
+                                                # raw_material_id=None, # Explicitly None or handle as special case
+                                                raw_material_id=None, # Assuming no direct RM link for samples
+                                                qty=item["qty"],
+                                                uom=item["uom"],
+                                                price=item["price"],
+                                                due_date=item["due_date"],
+                                                notes=f"Amostra: {item['product_name']}" # Store product name in notes
+                                            )
+                                            session.add(purchase_item)
+
 
                                     session.commit()
                                     st.success(f"Pedido de compra '{code}' criado com sucesso!")
 
                                     # Clear session state
-                                    del st.session_state.purchase_items
+                                    if "purchase_items" in st.session_state:
+                                        del st.session_state.purchase_items
                                     st.rerun()
 
                         except Exception as e:
@@ -769,7 +808,7 @@ with tab3:
     st.markdown("### 🧪 Top Matérias-Primas Compradas")
 
     # Get all purchase items
-    all_items = session.exec(select(PurchaseItem, RawMaterial.name_usual).join(
+    all_items = session.exec(select(PurchaseItem, RawMaterial.code, RawMaterial.name_usual).join(
         RawMaterial, PurchaseItem.raw_material_id == RawMaterial.id
     )).all()
 
