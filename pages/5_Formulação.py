@@ -125,8 +125,8 @@ with tab1:
                         from services.pdf_generator import generate_formulation_pdf
                         import os
                         
-                        # Gerar PDF
-                        pdf_path = generate_formulation_pdf(formulation, product, items_results)
+                        # Gerar PDF passando o role do usuário
+                        pdf_path = generate_formulation_pdf(formulation, product, items_results, user["role"])
                         
                         # Fornecer download
                         with open(pdf_path, "rb") as pdf_file:

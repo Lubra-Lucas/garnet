@@ -446,7 +446,7 @@ def generate_quote_request_pdf(quote_request, supplier, items):
 
 
 
-def generate_formulation_pdf(formulation, product, items):
+def generate_formulation_pdf(formulation, product, items, user_role=None):
     """
     Gera um PDF formal de formulação de produto
     
@@ -454,6 +454,7 @@ def generate_formulation_pdf(formulation, product, items):
         formulation: Objeto Formulation com os dados da formulação
         product: Objeto Product com dados do produto
         items: Lista de tuplas (FormulaItem, código_mp, nome_mp, preço_mp, supplier_id, supplier_name)
+        user_role: Role do usuário para determinar se mostra informações de custo
     
     Returns:
         str: Caminho do arquivo PDF gerado
@@ -557,15 +558,27 @@ def generate_formulation_pdf(formulation, product, items):
     story.append(Paragraph("<b>Composição da Formulação:</b>", normal_style))
     story.append(Spacer(1, 0.3*cm))
     
-    # Cabeçalho da tabela
-    items_data = [[
-        "#", 
-        "Código MP",
-        "Matéria-Prima", 
-        "Quantidade", 
-        "Unidade", 
-        "% Formulação"
-    ]]
+    # Cabeçalho da tabela - diferente para managers
+    if user_role == "manager":
+        items_data = [[
+            "#", 
+            "Código MP",
+            "Matéria-Prima", 
+            "Quantidade", 
+            "Unidade", 
+            "Preço Base",
+            "% Formulação",
+            "Custo"
+        ]]
+    else:
+        items_data = [[
+            "#", 
+            "Código MP",
+            "Matéria-Prima", 
+            "Quantidade", 
+            "Unidade", 
+            "% Formulação"
+        ]]
     
     # Adicionar dados dos itens
     for idx, (item, rm_code, rm_name, rm_price, supplier_id, supplier_name) in enumerate(items, 1):
@@ -580,20 +593,53 @@ def generate_formulation_pdf(formulation, product, items):
         
         percentage = (item_qty_in_grams / product.std_batch_weight * 100) if product.std_batch_weight > 0 else 0
         
-        items_data.append([
-            str(idx),
-            rm_code,
-            rm_name,
-            f"{item.qty:.4f}",
-            item.uom,
-            f"{percentage:.2f}%"
-        ])
+        # Calcular custo do item para managers
+        if user_role == "manager":
+            from services.business import material_cost_unit
+            from sqlmodel import Session
+            from db import engine
+            from models import RawMaterial
+            
+            with Session(engine) as session:
+                rm = session.get(RawMaterial, item.raw_material_id)
+                item_cost = material_cost_unit(rm, item.qty, item.uom)
+            
+            # Obter base_unit da matéria-prima
+            with Session(engine) as session:
+                rm = session.get(RawMaterial, item.raw_material_id)
+                base_unit = rm.base_unit if rm else "UN"
+            
+            items_data.append([
+                str(idx),
+                rm_code,
+                rm_name,
+                f"{item.qty:.4f}",
+                item.uom,
+                f"R$ {rm_price:.2f}/{base_unit}",
+                f"{percentage:.2f}%",
+                f"R$ {item_cost:.2f}"
+            ])
+        else:
+            items_data.append([
+                str(idx),
+                rm_code,
+                rm_name,
+                f"{item.qty:.4f}",
+                item.uom,
+                f"{percentage:.2f}%"
+            ])
     
-    # Larguras das colunas
-    table_items = Table(
-        items_data, 
-        colWidths=[1*cm, 2.5*cm, 6*cm, 2*cm, 1.5*cm, 2.5*cm]
-    )
+    # Larguras das colunas - diferentes para managers
+    if user_role == "manager":
+        table_items = Table(
+            items_data, 
+            colWidths=[0.8*cm, 2*cm, 4.5*cm, 1.8*cm, 1.3*cm, 2.2*cm, 2*cm, 1.9*cm]
+        )
+    else:
+        table_items = Table(
+            items_data, 
+            colWidths=[1*cm, 2.5*cm, 6*cm, 2*cm, 1.5*cm, 2.5*cm]
+        )
     
     table_items.setStyle(TableStyle([
         # Cabeçalho
