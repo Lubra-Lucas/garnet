@@ -123,15 +123,14 @@ def generate_purchase_order_pdf(purchase_order, supplier, items, order_type="Ped
         "Matéria-Prima", 
         "Quantidade", 
         "Unidade", 
-        "Preço Unit.", 
-        "Total",
+        "Valor Total",
         "Data Entrega"
     ]]
     
     # Adicionar dados dos itens
     total_value = 0
     for idx, (item, rm_code, rm_name) in enumerate(items, 1):
-        line_total = item.qty * item.price
+        line_total = item.price  # Price is already the total value
         total_value += line_total
         
         items_data.append([
@@ -140,14 +139,13 @@ def generate_purchase_order_pdf(purchase_order, supplier, items, order_type="Ped
             f"{item.qty:.2f}",
             item.uom,
             f"R$ {item.price:.2f}",
-            f"R$ {line_total:.2f}",
             item.due_date.strftime("%d/%m/%Y") if item.due_date else "N/A"
         ])
     
     # Larguras das colunas
     table_items = Table(
         items_data, 
-        colWidths=[0.8*cm, 5.5*cm, 2*cm, 1.5*cm, 2.2*cm, 2.2*cm, 2.3*cm]
+        colWidths=[0.8*cm, 6.5*cm, 2.5*cm, 2*cm, 3*cm, 2.7*cm]
     )
     
     table_items.setStyle(TableStyle([
