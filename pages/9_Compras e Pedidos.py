@@ -804,7 +804,7 @@ with tab3:
 
     if all_items:
         material_stats = {}
-        for item, rm_name in all_items:
+        for item, rm_code, rm_name in all_items:
             if rm_name not in material_stats:
                 material_stats[rm_name] = {"qty": 0, "value": 0}
             material_stats[rm_name]["qty"] += item.qty
