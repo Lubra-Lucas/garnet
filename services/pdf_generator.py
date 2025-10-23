@@ -787,10 +787,10 @@ def generate_formulation_pdf(formulation, product, items, user_role=None):
             "#", 
             "Código MP",
             "Matéria-Prima", 
-            "Quantidade", 
-            "Unidade", 
+            "Qtd.", 
+            "Un.", 
             "Preço Base",
-            "% Formulação",
+            "% Form.",
             "Custo"
         ]]
     else:
@@ -798,12 +798,12 @@ def generate_formulation_pdf(formulation, product, items, user_role=None):
             "#", 
             "Código MP",
             "Matéria-Prima", 
-            "Quantidade", 
-            "Unidade", 
-            "% Formulação"
+            "Qtd.", 
+            "Un.", 
+            "% Form."
         ]]
     
-    # Adicionar dados dos itens
+    # Adicionar dados dos itens usando Paragraph para quebra de linha automática
     for idx, (item, rm_code, rm_name, rm_price, supplier_id, supplier_name) in enumerate(items, 1):
         # Calcular percentual
         item_qty_in_grams = item.qty
@@ -815,6 +815,16 @@ def generate_formulation_pdf(formulation, product, items, user_role=None):
             item_qty_in_grams = item.qty * 1
         
         percentage = (item_qty_in_grams / product.std_batch_weight * 100) if product.std_batch_weight > 0 else 0
+        
+        # Criar Paragraph para o nome da matéria-prima (permite quebra de linha)
+        small_style = ParagraphStyle(
+            'SmallText',
+            parent=styles['Normal'],
+            fontSize=8,
+            leading=10,
+            alignment=TA_LEFT
+        )
+        rm_name_paragraph = Paragraph(rm_name, small_style)
         
         # Calcular custo do item para managers
         if user_role == "manager":
@@ -835,7 +845,7 @@ def generate_formulation_pdf(formulation, product, items, user_role=None):
             items_data.append([
                 str(idx),
                 rm_code,
-                rm_name,
+                rm_name_paragraph,  # Usar Paragraph aqui
                 f"{item.qty:.4f}",
                 item.uom,
                 f"R$ {rm_price:.2f}/{base_unit}",
@@ -846,7 +856,7 @@ def generate_formulation_pdf(formulation, product, items, user_role=None):
             items_data.append([
                 str(idx),
                 rm_code,
-                rm_name,
+                rm_name_paragraph,  # Usar Paragraph aqui
                 f"{item.qty:.4f}",
                 item.uom,
                 f"{percentage:.2f}%"
@@ -856,12 +866,12 @@ def generate_formulation_pdf(formulation, product, items, user_role=None):
     if user_role == "manager":
         table_items = Table(
             items_data, 
-            colWidths=[0.8*cm, 2.2*cm, 4.8*cm, 1.9*cm, 1.4*cm, 2.3*cm, 2.1*cm, 2*cm]
+            colWidths=[0.7*cm, 1.8*cm, 5*cm, 1.6*cm, 1.2*cm, 2.2*cm, 1.8*cm, 1.8*cm]
         )
     else:
         table_items = Table(
             items_data, 
-            colWidths=[1*cm, 2.8*cm, 6.5*cm, 2.2*cm, 1.8*cm, 2.7*cm]
+            colWidths=[0.8*cm, 2.2*cm, 7.5*cm, 1.8*cm, 1.5*cm, 2.5*cm]
         )
     
     table_items.setStyle(TableStyle([
@@ -869,32 +879,35 @@ def generate_formulation_pdf(formulation, product, items, user_role=None):
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2E4A6B')),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 9),
+        ('FONTSIZE', (0, 0), (-1, 0), 8),
         ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
         ('VALIGN', (0, 0), (-1, 0), 'MIDDLE'),
         
         # Corpo da tabela
         ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-        ('FONTSIZE', (0, 1), (-1, -1), 9),
+        ('FONTSIZE', (0, 1), (-1, -1), 8),
         ('ALIGN', (0, 1), (0, -1), 'CENTER'),  # Coluna #
-        ('ALIGN', (1, 1), (1, -1), 'LEFT'),    # Código MP
-        ('ALIGN', (2, 1), (2, -1), 'LEFT'),    # Nome
+        ('ALIGN', (1, 1), (1, -1), 'CENTER'),  # Código MP
+        ('ALIGN', (2, 1), (2, -1), 'LEFT'),    # Nome (com quebra de linha)
         ('ALIGN', (3, 1), (-1, -1), 'CENTER'), # Restante centralizado
+        ('VALIGN', (0, 1), (-1, -1), 'TOP'),   # Alinhamento vertical superior
         
         # Bordas
         ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         
-        # Padding - Aumentado para melhor legibilidade
-        ('LEFTPADDING', (0, 0), (-1, -1), 8),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+        # Padding - Ajustado para acomodar quebras de linha
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
         ('TOPPADDING', (0, 0), (-1, 0), 8),
         ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-        ('TOPPADDING', (0, 1), (-1, -1), 10),
-        ('BOTTOMPADDING', (0, 1), (-1, -1), 10),
+        ('TOPPADDING', (0, 1), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, 1), (-1, -1), 8),
         
         # Zebra striping
         ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F8F9FA')]),
+        
+        # Permitir quebra de linha
+        ('WORDWRAP', (2, 1), (2, -1), True),
     ]))
     
     story.append(table_items)
