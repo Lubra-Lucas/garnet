@@ -29,7 +29,7 @@ with tab1:
     # Clean section header
     st.markdown("""
     <div style="margin-bottom: 1.5rem;">
-        <h3 style="margin: 0; color: #2E4A6B; font-weight: 400;">Catálogo de Matérias-Primas</h3>
+        <h3 style="margin: 0; color: #2E4A6B; font-weight: 400;">Catálogo de Matérias-Primas/Insumos</h3>
     </div>
     """, unsafe_allow_html=True)
     
