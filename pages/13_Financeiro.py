@@ -118,7 +118,7 @@ with tab1:
                 "Vencimento": payable.due_date.strftime("%d/%m/%Y"),
                 "Dias": days_to_due,
                 "Status Pag.": payable.status,
-                "XML": "✅" if payable.xml_file_path else "❌",
+                "PDF": "✅" if payable.xml_file_path else "❌",
                 "Observações": payable.notes or "N/A"
             })
 
@@ -149,7 +149,7 @@ with tab1:
                 df,
                 hide_index=True,
                 use_container_width=True,
-                disabled=["ID", "Status", "Fornecedor", "Documento", "Dias", "XML"],
+                disabled=["ID", "Status", "Fornecedor", "Documento", "Dias", "PDF"],
                 column_config={
                     "Status Pag.": st.column_config.SelectboxColumn(
                         "Status Pagamento",
@@ -354,12 +354,12 @@ with tab1:
                 status = st.selectbox("Status", ["Pendente", "Pago"])
                 notes = st.text_area("Observações", placeholder="Observações adicionais")
 
-            # XML file upload
-            st.markdown("**Anexar Nota XML**")
+            # PDF file upload
+            st.markdown("**Anexar Nota Fiscal (PDF)**")
             xml_file = st.file_uploader(
-                "Selecione o arquivo XML da nota fiscal", 
-                type=['xml'], 
-                help="Faça upload do arquivo XML da nota fiscal"
+                "Selecione o arquivo PDF da nota fiscal", 
+                type=['pdf'], 
+                help="Faça upload do arquivo PDF da nota fiscal"
             )
 
             # Installment options
@@ -438,9 +438,9 @@ with tab1:
                     import os
                     xml_file_path = None
 
-                    # Handle XML file upload
+                    # Handle PDF file upload
                     if xml_file:
-                        upload_dir = "uploads/xml_files"
+                        upload_dir = "uploads/pdf_files"
                         os.makedirs(upload_dir, exist_ok=True)
                         xml_file_path = os.path.join(upload_dir, f"{doc_ref}_{xml_file.name}")
                         with open(xml_file_path, "wb") as f:
@@ -590,7 +590,7 @@ with tab2:
                 "Vencimento": receivable.due_date.strftime("%d/%m/%Y"),
                 "Dias": days_to_due,
                 "Status Rec.": receivable.status,
-                "XML": "✅" if receivable.xml_file_path else "❌",
+                "PDF": "✅" if receivable.xml_file_path else "❌",
                 "Observações": receivable.notes or "N/A"
             })
 
@@ -621,7 +621,7 @@ with tab2:
                 df_ar,
                 hide_index=True,
                 use_container_width=True,
-                disabled=["ID", "Status", "Cliente", "Documento", "Dias", "XML"],
+                disabled=["ID", "Status", "Cliente", "Documento", "Dias", "PDF"],
                 column_config={
                     "Status Rec.": st.column_config.SelectboxColumn(
                         "Status Recebimento",
@@ -805,13 +805,13 @@ with tab2:
                 status_ar = st.selectbox("Status", ["Pendente", "Recebido"], key="new_receivable_status")
                 notes_ar = st.text_area("Observações", placeholder="Observações adicionais")
 
-            # XML file upload
-            st.markdown("**Anexar Nota XML**")
+            # PDF file upload
+            st.markdown("**Anexar Nota Fiscal (PDF)**")
             xml_file_ar = st.file_uploader(
-                "Selecione o arquivo XML da nota fiscal", 
-                type=['xml'], 
-                help="Faça upload do arquivo XML da nota fiscal",
-                key="receivable_xml"
+                "Selecione o arquivo PDF da nota fiscal", 
+                type=['pdf'], 
+                help="Faça upload do arquivo PDF da nota fiscal",
+                key="receivable_pdf"
             )
 
             # Installment options
@@ -888,9 +888,9 @@ with tab2:
                     import os
                     xml_file_path_ar = None
 
-                    # Handle XML file upload
+                    # Handle PDF file upload
                     if xml_file_ar:
-                        upload_dir = "uploads/xml_files"
+                        upload_dir = "uploads/pdf_files"
                         os.makedirs(upload_dir, exist_ok=True)
                         xml_file_path_ar = os.path.join(upload_dir, f"{doc_ref_ar}_{xml_file_ar.name}")
                         with open(xml_file_path_ar, "wb") as f:
