@@ -85,15 +85,15 @@ with tab1:
             start_date_param = datetime.now() - timedelta(days=365)
             monthly_production = session.exec(
                 text("""
-                SELECT to_char(created_at, 'YYYY-MM') as month, 
-                       COUNT(*) as count, 
-                       SUM(qty_to_produce) as total_qty
-                FROM productionorder 
-                WHERE created_at >= :start_date
-                GROUP BY to_char(created_at, 'YYYY-MM')
-                ORDER BY to_char(created_at, 'YYYY-MM')
-                """).params(start_date=start_date_param)
-            ).all()
+                    SELECT strftime('%Y-%m', created_at) AS month,
+                           COUNT(*) AS count,
+                           SUM(qty_to_produce) AS total_qty
+                    FROM productionorder
+                    WHERE created_at >= :start_date
+                    GROUP BY strftime('%Y-%m', created_at)
+                    ORDER BY strftime('%Y-%m', created_at)
+                """)
+            ).params(start_date=start_date_param).all()
 
             if monthly_production:
                 prod_data = []
