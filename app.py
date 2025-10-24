@@ -3,7 +3,7 @@ import streamlit as st
 import os
 from db import init_db
 from auth import login_form, has_permission
-from models import User
+from models import User, Supplier, RawMaterial, Product, StockLot, ProductionOrder, PurchaseOrder
 from sqlmodel import Session, select
 from db import engine
 from auth import hash_password
@@ -179,7 +179,6 @@ else:
                             st.switch_page("pages/3_Matérias-Primas.py")
             
             # Search in Products
-            from models import Product
             products = session.exec(
                 select(Product).where(
                     (Product.code.ilike(f"%{search_term}%")) |
@@ -200,7 +199,6 @@ else:
                             st.switch_page("pages/4_Produtos.py")
             
             # Search in Stock Lots
-            from models import StockLot
             stock_lots = session.exec(
                 select(StockLot, RawMaterial.code, RawMaterial.name_usual)
                 .join(RawMaterial, StockLot.item_id == RawMaterial.id)
@@ -224,7 +222,6 @@ else:
                             st.switch_page("pages/6_Estoque.py")
             
             # Search in Production Orders
-            from models import ProductionOrder
             production_orders = session.exec(
                 select(ProductionOrder, Product.code, Product.name)
                 .join(Product, ProductionOrder.product_id == Product.id)
@@ -247,7 +244,6 @@ else:
                             st.switch_page("pages/7_Ordens de Produção.py")
             
             # Search in Purchase Orders
-            from models import PurchaseOrder
             purchase_orders = session.exec(
                 select(PurchaseOrder, Supplier.name)
                 .join(Supplier, PurchaseOrder.supplier_id == Supplier.id)
