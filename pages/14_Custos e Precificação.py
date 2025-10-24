@@ -31,15 +31,35 @@ with tab1:
     
     # Product selection for cost analysis
     with Session(engine) as session:
+        # First, get all products with approved formulations
         products_with_formulation = session.exec(
             select(Product, Formulation.id)
             .join(Formulation, Product.id == Formulation.product_id)
             .where(Formulation.state == "aprovada")
             .where(Product.status == "ativo")
         ).all()
-    
-    if not products_with_formulation:
-        st.error("Nenhum produto com formulação aprovada encontrado.")
+        
+        # Debug: show count of formulations
+        total_formulations = session.exec(select(Formulation)).all()
+        approved_formulations = session.exec(
+            select(Formulation).where(Formulation.state == "aprovada")
+        ).all()
+        
+        if not products_with_formulation:
+            # Show debug info
+            st.error(f"Nenhum produto com formulação aprovada encontrado.")
+            with st.expander("🔍 Informações de Debug"):
+                st.write(f"Total de formulações no sistema: {len(total_formulations)}")
+                st.write(f"Formulações aprovadas: {len(approved_formulations)}")
+                
+                if approved_formulations:
+                    st.write("**Formulações aprovadas:**")
+                    for form in approved_formulations:
+                        product = session.get(Product, form.product_id)
+                        if product:
+                            st.write(f"- {product.code} - {product.name} (Versão: {form.version}, Estado: {form.state})")
+                
+                st.info("💡 Verifique se os produtos estão com status 'ativo' e se as formulações estão com state 'aprovada' (minúsculo).")
     else:
         product_options = [f"{p.code} - {p.name}" for p, _ in products_with_formulation]
         selected_product_option = st.selectbox("Selecione um produto:", product_options)
