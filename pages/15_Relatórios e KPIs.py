@@ -85,13 +85,13 @@ with tab1:
             start_date_param = datetime.now() - timedelta(days=365)
             monthly_production = session.exec(
                 text("""
-                    SELECT strftime('%Y-%m', created_at) AS month,
+                    SELECT to_char(created_at, 'YYYY-MM') AS month,
                            COUNT(*) AS count,
                            SUM(qty_to_produce) AS total_qty
                     FROM productionorder
                     WHERE created_at >= :start_date
-                    GROUP BY strftime('%Y-%m', created_at)
-                    ORDER BY strftime('%Y-%m', created_at)
+                    GROUP BY to_char(created_at, 'YYYY-MM')
+                    ORDER BY to_char(created_at, 'YYYY-MM')
                 """).params(start_date=start_date_param)
             ).all()
 
@@ -133,13 +133,13 @@ with tab1:
             start_date_purchases = date.today() - timedelta(days=180)
             monthly_purchases = session.exec(
                 text("""
-                SELECT strftime('%Y-%m', order_date) as month,
+                SELECT to_char(order_date, 'YYYY-MM') as month,
                        COUNT(id) as count,
                        SUM(total_value) as total_value
                 FROM purchaseorder 
                 WHERE order_date >= :start_date
-                GROUP BY strftime('%Y-%m', order_date)
-                ORDER BY strftime('%Y-%m', order_date)
+                GROUP BY to_char(order_date, 'YYYY-MM')
+                ORDER BY to_char(order_date, 'YYYY-MM')
                 """).params(start_date=start_date_purchases)
             ).all()
 
@@ -485,13 +485,13 @@ with tab3:
                 start_date_quality = date.today() - timedelta(days=180)
                 quality_trend = session.exec(
                     text("""
-                    SELECT strftime('%Y-%m', test_date) as month,
+                    SELECT to_char(test_date, 'YYYY-MM') as month,
                            COUNT(id) as total,
                            SUM(CASE WHEN status = 'Conforme' THEN 1 ELSE 0 END) as passed
                     FROM qualitytest 
                     WHERE test_date >= :start_date
-                    GROUP BY strftime('%Y-%m', test_date)
-                    ORDER BY strftime('%Y-%m', test_date)
+                    GROUP BY to_char(test_date, 'YYYY-MM')
+                    ORDER BY to_char(test_date, 'YYYY-MM')
                     """).params(start_date=start_date_quality)
                 ).all()
 
