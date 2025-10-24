@@ -134,8 +134,143 @@ else:
     search_term = st.text_input("Busca", placeholder="Pesquisar por código, nome ou lote...", label_visibility="collapsed")
 
     if search_term:
-        st.info(f"Resultados da busca por: '{search_term}'")
-        st.markdown("*Funcionalidade de busca será implementada nas próximas páginas*")
+        st.info(f"🔍 Resultados da busca por: '{search_term}'")
+        
+        with Session(engine) as session:
+            results_found = False
+            
+            # Search in Suppliers
+            suppliers = session.exec(
+                select(Supplier).where(
+                    (Supplier.name.ilike(f"%{search_term}%")) |
+                    (Supplier.cnpj.ilike(f"%{search_term}%"))
+                )
+            ).all()
+            
+            if suppliers:
+                results_found = True
+                st.markdown("### 🏢 Fornecedores")
+                for supplier in suppliers[:5]:
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        st.markdown(f"**{supplier.name}** - CNPJ: {supplier.cnpj or 'N/A'} - Status: {supplier.status}")
+                    with col2:
+                        if st.button("Ver detalhes", key=f"supplier_{supplier.id}"):
+                            st.switch_page("pages/2_Fornecedores.py")
+            
+            # Search in Raw Materials
+            raw_materials = session.exec(
+                select(RawMaterial).where(
+                    (RawMaterial.code.ilike(f"%{search_term}%")) |
+                    (RawMaterial.name_usual.ilike(f"%{search_term}%")) |
+                    (RawMaterial.name_chemical.ilike(f"%{search_term}%"))
+                )
+            ).all()
+            
+            if raw_materials:
+                results_found = True
+                st.markdown("### 🧪 Matérias-Primas")
+                for rm in raw_materials[:5]:
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        st.markdown(f"**{rm.code}** - {rm.name_usual} - Preço: R$ {rm.base_price:.2f}/{rm.base_unit}")
+                    with col2:
+                        if st.button("Ver detalhes", key=f"rm_{rm.id}"):
+                            st.switch_page("pages/3_Matérias-Primas.py")
+            
+            # Search in Products
+            from models import Product
+            products = session.exec(
+                select(Product).where(
+                    (Product.code.ilike(f"%{search_term}%")) |
+                    (Product.name.ilike(f"%{search_term}%")) |
+                    (Product.client.ilike(f"%{search_term}%"))
+                )
+            ).all()
+            
+            if products:
+                results_found = True
+                st.markdown("### 📦 Produtos")
+                for product in products[:5]:
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        st.markdown(f"**{product.code}** - {product.name} - Cliente: {product.client or 'N/A'}")
+                    with col2:
+                        if st.button("Ver detalhes", key=f"product_{product.id}"):
+                            st.switch_page("pages/4_Produtos.py")
+            
+            # Search in Stock Lots
+            from models import StockLot
+            stock_lots = session.exec(
+                select(StockLot, RawMaterial.code, RawMaterial.name_usual)
+                .join(RawMaterial, StockLot.item_id == RawMaterial.id)
+                .where(StockLot.item_type == "MP")
+                .where(
+                    (StockLot.lot_code.ilike(f"%{search_term}%")) |
+                    (RawMaterial.code.ilike(f"%{search_term}%")) |
+                    (RawMaterial.name_usual.ilike(f"%{search_term}%"))
+                )
+            ).all()
+            
+            if stock_lots:
+                results_found = True
+                st.markdown("### 📊 Estoque")
+                for lot, rm_code, rm_name in stock_lots[:5]:
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        st.markdown(f"**Lote {lot.lot_code}** - {rm_code} - {rm_name} - Qtd: {lot.qty:.2f} {lot.uom} - Status: {lot.status}")
+                    with col2:
+                        if st.button("Ver estoque", key=f"lot_{lot.id}"):
+                            st.switch_page("pages/6_Estoque.py")
+            
+            # Search in Production Orders
+            from models import ProductionOrder
+            production_orders = session.exec(
+                select(ProductionOrder, Product.code, Product.name)
+                .join(Product, ProductionOrder.product_id == Product.id)
+                .where(
+                    (ProductionOrder.code.ilike(f"%{search_term}%")) |
+                    (Product.code.ilike(f"%{search_term}%")) |
+                    (Product.name.ilike(f"%{search_term}%"))
+                )
+            ).all()
+            
+            if production_orders:
+                results_found = True
+                st.markdown("### 🏭 Ordens de Produção")
+                for po, prod_code, prod_name in production_orders[:5]:
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        st.markdown(f"**{po.code}** - {prod_code} ({prod_name}) - Qtd: {po.qty_to_produce:.0f} - Status: {po.status}")
+                    with col2:
+                        if st.button("Ver produção", key=f"po_{po.id}"):
+                            st.switch_page("pages/7_Ordens de Produção.py")
+            
+            # Search in Purchase Orders
+            from models import PurchaseOrder
+            purchase_orders = session.exec(
+                select(PurchaseOrder, Supplier.name)
+                .join(Supplier, PurchaseOrder.supplier_id == Supplier.id)
+                .where(
+                    (PurchaseOrder.code.ilike(f"%{search_term}%")) |
+                    (Supplier.name.ilike(f"%{search_term}%"))
+                )
+            ).all()
+            
+            if purchase_orders:
+                results_found = True
+                st.markdown("### 🛒 Pedidos de Compra")
+                for po, supplier_name in purchase_orders[:5]:
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        st.markdown(f"**{po.code}** - Fornecedor: {supplier_name} - Valor: R$ {po.total_value:,.2f} - Status: {po.status}")
+                    with col2:
+                        if st.button("Ver pedido", key=f"purchase_{po.id}"):
+                            st.switch_page("pages/9_Compras e Pedidos.py")
+            
+            if not results_found:
+                st.warning("⚠️ Nenhum resultado encontrado. Tente outro termo de busca.")
+                st.info("💡 Dica: A busca procura em códigos, nomes, lotes, fornecedores e clientes.")
 
     # Clean access section with proper spacing
     # Quick access section using utility
