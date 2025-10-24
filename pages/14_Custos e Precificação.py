@@ -44,22 +44,23 @@ with tab1:
         approved_formulations = session.exec(
             select(Formulation).where(Formulation.state == "aprovada")
         ).all()
-        
-        if not products_with_formulation:
-            # Show debug info
-            st.error(f"Nenhum produto com formulação aprovada encontrado.")
-            with st.expander("🔍 Informações de Debug"):
-                st.write(f"Total de formulações no sistema: {len(total_formulations)}")
-                st.write(f"Formulações aprovadas: {len(approved_formulations)}")
-                
-                if approved_formulations:
-                    st.write("**Formulações aprovadas:**")
-                    for form in approved_formulations:
+    
+    if not products_with_formulation:
+        # Show debug info
+        st.error(f"Nenhum produto com formulação aprovada encontrado.")
+        with st.expander("🔍 Informações de Debug"):
+            st.write(f"Total de formulações no sistema: {len(total_formulations)}")
+            st.write(f"Formulações aprovadas: {len(approved_formulations)}")
+            
+            if approved_formulations:
+                st.write("**Formulações aprovadas:**")
+                for form in approved_formulations:
+                    with Session(engine) as session:
                         product = session.get(Product, form.product_id)
                         if product:
                             st.write(f"- {product.code} - {product.name} (Versão: {form.version}, Estado: {form.state})")
-                
-                st.info("💡 Verifique se os produtos estão com status 'ativo' e se as formulações estão com state 'aprovada' (minúsculo).")
+            
+            st.info("💡 Verifique se os produtos estão com status 'ativo' e se as formulações estão com state 'aprovada' (minúsculo).")
     else:
         product_options = [f"{p.code} - {p.name}" for p, _ in products_with_formulation]
         selected_product_option = st.selectbox("Selecione um produto:", product_options)
