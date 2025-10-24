@@ -92,8 +92,8 @@ with tab1:
                     WHERE created_at >= :start_date
                     GROUP BY strftime('%Y-%m', created_at)
                     ORDER BY strftime('%Y-%m', created_at)
-                """)
-            ).params(start_date=start_date_param).all()
+                """).params(start_date=start_date_param)
+            ).all()
 
             if monthly_production:
                 prod_data = []
@@ -130,16 +130,17 @@ with tab1:
     with chart_exec_col2:
         # Purchase orders trend
         with Session(engine) as session:
+            start_date_purchases = date.today() - timedelta(days=180)
             monthly_purchases = session.exec(
                 text("""
-                SELECT to_char(order_date, 'YYYY-MM') as month,
+                SELECT strftime('%Y-%m', order_date) as month,
                        COUNT(id) as count,
                        SUM(total_value) as total_value
                 FROM purchaseorder 
                 WHERE order_date >= :start_date
-                GROUP BY to_char(order_date, 'YYYY-MM')
-                ORDER BY to_char(order_date, 'YYYY-MM')
-                """).params(start_date=date.today() - timedelta(days=180))
+                GROUP BY strftime('%Y-%m', order_date)
+                ORDER BY strftime('%Y-%m', order_date)
+                """).params(start_date=start_date_purchases)
             ).all()
 
             if monthly_purchases:
@@ -481,16 +482,17 @@ with tab3:
             if total_tests > 0:
                 st.markdown("#### 📊 Tendência de Qualidade")
 
+                start_date_quality = date.today() - timedelta(days=180)
                 quality_trend = session.exec(
                     text("""
-                    SELECT to_char(test_date, 'YYYY-MM') as month,
+                    SELECT strftime('%Y-%m', test_date) as month,
                            COUNT(id) as total,
                            SUM(CASE WHEN status = 'Conforme' THEN 1 ELSE 0 END) as passed
                     FROM qualitytest 
                     WHERE test_date >= :start_date
-                    GROUP BY to_char(test_date, 'YYYY-MM')
-                    ORDER BY to_char(test_date, 'YYYY-MM')
-                    """).params(start_date=date.today() - timedelta(days=180))
+                    GROUP BY strftime('%Y-%m', test_date)
+                    ORDER BY strftime('%Y-%m', test_date)
+                    """).params(start_date=start_date_quality)
                 ).all()
 
                 if quality_trend:
