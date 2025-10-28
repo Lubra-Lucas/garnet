@@ -55,7 +55,7 @@ with tab1:
                 "Versão": formulation.version,
                 "Estado": formulation.state,
                 "Itens": len(item_count),
-                "Aprovado Por": formulation.approved_by or "N/A",
+                "Cadastrado por": formulation.approved_by or "N/A",
                 "Data Aprovação": formulation.approved_at.strftime("%d/%m/%Y") if formulation.approved_at else "N/A"
             })
 
@@ -105,7 +105,7 @@ with tab1:
 
                 with col2:
                     st.markdown("**Status de Aprovação**")
-                    st.text(f"Aprovado Por: {formulation.approved_by or 'Não aprovado'}")
+                    st.text(f"Cadastrado por: {formulation.approved_by or 'Não aprovado'}")
                     st.text(f"Data Aprovação: {formulation.approved_at or 'N/A'}")
 
                     # Approval actions for managers
