@@ -351,12 +351,25 @@ def generate_quote_request_pdf(quote_request, supplier, items):
         "LEAD TIME"
     ]]
     
+    # Criar estilo para texto pequeno com quebra de linha
+    small_style = ParagraphStyle(
+        'SmallText',
+        parent=styles['Normal'],
+        fontSize=7,
+        leading=9,
+        alignment=TA_LEFT
+    )
+    
     # Adicionar dados dos itens com campos vazios para preenchimento do fornecedor
     for idx, item in enumerate(items, 1):
+        # Criar Paragraph para item_name e chemical_name para permitir quebra de linha
+        item_name_paragraph = Paragraph(item.item_name, small_style)
+        chemical_name_paragraph = Paragraph(item.chemical_name or "", small_style) if item.chemical_name else ""
+        
         consolidated_data.append([
             str(idx),
-            item.item_name,
-            item.chemical_name or "",
+            item_name_paragraph,
+            chemical_name_paragraph,
             str(item.min_quantity),
             item.uom,
             "",  # EMBALAGEM MÍNIMA - para fornecedor preencher
@@ -382,22 +395,22 @@ def generate_quote_request_pdf(quote_request, supplier, items):
         
         # Corpo da tabela
         ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-        ('FONTSIZE', (0, 1), (-1, -1), 8),
+        ('FONTSIZE', (0, 1), (-1, -1), 7),
         ('ALIGN', (0, 1), (0, -1), 'CENTER'),  # Coluna #
         ('ALIGN', (1, 1), (2, -1), 'LEFT'),     # Produto e INCI NAME
         ('ALIGN', (3, 1), (-1, -1), 'CENTER'),  # Restante centralizado
+        ('VALIGN', (0, 1), (-1, -1), 'TOP'),    # Alinhamento vertical superior
         
         # Bordas
         ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         
-        # Padding
+        # Padding - Ajustado para acomodar quebras de linha
         ('LEFTPADDING', (0, 0), (-1, -1), 4),
         ('RIGHTPADDING', (0, 0), (-1, -1), 4),
         ('TOPPADDING', (0, 0), (-1, 0), 6),
         ('BOTTOMPADDING', (0, 0), (-1, 0), 6),
-        ('TOPPADDING', (0, 1), (-1, -1), 10),
-        ('BOTTOMPADDING', (0, 1), (-1, -1), 10),
+        ('TOPPADDING', (0, 1), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, 1), (-1, -1), 8),
         
         # Zebra striping para facilitar leitura
         ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F8F9FA')]),
@@ -405,7 +418,7 @@ def generate_quote_request_pdf(quote_request, supplier, items):
         # Destaque visual para campos a preencher (colunas 5-8)
         ('BACKGROUND', (5, 1), (-1, -1), colors.HexColor('#FFFEF0')),
         
-        # Quebra de linha no cabeçalho
+        # Quebra de linha
         ('WORDWRAP', (0, 0), (-1, -1), True),
     ]))
     
@@ -544,9 +557,21 @@ def generate_stock_report_pdf(stock_items, user_role=None):
             "Localização"
         ]]
     
+    # Criar estilo para texto pequeno com quebra de linha
+    small_style = ParagraphStyle(
+        'SmallText',
+        parent=styles['Normal'],
+        fontSize=8,
+        leading=10,
+        alignment=TA_LEFT
+    )
+    
     # Adicionar dados dos itens
     total_value = 0
     for idx, item in enumerate(stock_items, 1):
+        # Criar Paragraph para o nome (permite quebra de linha)
+        nome_paragraph = Paragraph(item.get("Nome", ""), small_style)
+        
         if user_role == "manager":
             # Extrair valor numérico do "Valor Total"
             valor_str = item.get("Valor Total", "R$ 0,00")
@@ -556,7 +581,7 @@ def generate_stock_report_pdf(stock_items, user_role=None):
             items_data.append([
                 str(idx),
                 item.get("Código MP", ""),
-                item.get("Nome", ""),
+                nome_paragraph,
                 item.get("Lote", ""),
                 f"{item.get('Quantidade', 0):.2f}",
                 item.get("UOM", ""),
@@ -569,7 +594,7 @@ def generate_stock_report_pdf(stock_items, user_role=None):
             items_data.append([
                 str(idx),
                 item.get("Código MP", ""),
-                item.get("Nome", ""),
+                nome_paragraph,
                 item.get("Lote", ""),
                 f"{item.get('Quantidade', 0):.2f}",
                 item.get("UOM", ""),
@@ -603,23 +628,27 @@ def generate_stock_report_pdf(stock_items, user_role=None):
         ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
         ('FONTSIZE', (0, 1), (-1, -1), 8),
         ('ALIGN', (0, 1), (0, -1), 'CENTER'),  # Coluna #
-        ('ALIGN', (1, 1), (2, -1), 'LEFT'),    # Código e Nome
+        ('ALIGN', (1, 1), (1, -1), 'CENTER'),  # Código
+        ('ALIGN', (2, 1), (2, -1), 'LEFT'),    # Nome (com quebra de linha)
         ('ALIGN', (3, 1), (-1, -1), 'CENTER'), # Restante centralizado
+        ('VALIGN', (0, 1), (-1, -1), 'TOP'),   # Alinhamento vertical superior
         
         # Bordas
         ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         
-        # Padding
+        # Padding - Ajustado para acomodar quebras de linha
         ('LEFTPADDING', (0, 0), (-1, -1), 6),
         ('RIGHTPADDING', (0, 0), (-1, -1), 6),
         ('TOPPADDING', (0, 0), (-1, 0), 8),
         ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-        ('TOPPADDING', (0, 1), (-1, -1), 10),
-        ('BOTTOMPADDING', (0, 1), (-1, -1), 10),
+        ('TOPPADDING', (0, 1), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, 1), (-1, -1), 8),
         
         # Zebra striping
         ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F8F9FA')]),
+        
+        # Permitir quebra de linha
+        ('WORDWRAP', (2, 1), (2, -1), True),
     ]))
     
     story.append(table_stock)
