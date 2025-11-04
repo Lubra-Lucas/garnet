@@ -23,7 +23,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Clean tabs without icons
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Visão Geral", "Matérias-Primas", "Produtos Acabados", "Alertas", "Histórico de Consumo", "Histórico de Movimentação"])
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Visão Geral", "Matérias-Primas", "Produtos Semi/Acabados", "Alertas", "Histórico de Consumo", "Histórico de Movimentação"])
 
 with tab1:
     st.subheader("Visão Geral do Estoque")
@@ -774,38 +774,332 @@ with tab2:
             st.info("Nenhum estoque de matéria-prima encontrado.")
 
 with tab3:
-    st.subheader("Estoque de Produtos Acabados")
+    st.subheader("Estoque de Produtos Semi/Acabados")
 
-    # Similar structure for finished products
+    # Add stock entry section at the top
+    if has_permission("operator"):
+        st.markdown("---")
+        st.markdown("### ➕ **Dar Entrada no Estoque**")
+
+        # Get active products first
+        with Session(engine) as session:
+            products = session.exec(select(Product).where(Product.status == "ativo")).all()
+
+        if not products:
+            st.error("⚠️ Nenhum produto ativo encontrado. Cadastre produtos primeiro na aba 'Produtos'.")
+        else:
+            with st.form("entrada_estoque_pa_form", clear_on_submit=True):
+                entrada_col1, entrada_col2, entrada_col3, entrada_col4 = st.columns(4)
+
+                with entrada_col1:
+                    product_options = [f"{p.code} - {p.name} ({p.product_type})" for p in products]
+                    selected_product_option = st.selectbox("Produto *", product_options, key="entrada_product")
+                    selected_product = products[product_options.index(selected_product_option)]
+
+                with entrada_col2:
+                    entrada_qty_pa = st.number_input("Quantidade *", min_value=0.01, value=1.0, step=0.01, key="entrada_qty_pa")
+                    entrada_uom_pa = st.selectbox("Unidade *", ["UN", "KG", "G", "L", "ML"], 
+                                             index=["UN", "KG", "G", "L", "ML"].index(selected_product.unit_uom) if selected_product.unit_uom in ["UN", "KG", "G", "L", "ML"] else 0, 
+                                             key="entrada_uom_pa")
+
+                with entrada_col3:
+                    entrada_lote_pa = st.text_input("Código do Lote *", placeholder="LOTE-PA-2024-001", key="entrada_lote_pa")
+                    entrada_validade_pa = st.date_input("Data de Validade", value=None, key="entrada_validade_pa")
+
+                with entrada_col4:
+                    entrada_custo_pa = st.number_input("Custo Médio (opcional)", min_value=0.0, value=0.0, step=0.01, key="entrada_custo_pa")
+                    st.caption("Status: Aprovado (automático)")
+
+                entrada_localizacao_pa = st.text_input("Localização", placeholder="Ex: Câmara Fria - Prateleira 1", key="entrada_local_pa")
+
+                submitted_pa = st.form_submit_button("💾 **Confirmar Entrada**", use_container_width=True)
+
+                if submitted_pa:
+                    if not entrada_lote_pa or entrada_qty_pa <= 0:
+                        st.error("Código do lote e quantidade são obrigatórios.")
+                    else:
+                        with Session(engine) as session:
+                            # Check if lot already exists
+                            existing_lot = session.exec(
+                                select(StockLot).where(
+                                    (StockLot.lot_code == entrada_lote_pa) & 
+                                    (StockLot.item_id == selected_product.id) &
+                                    (StockLot.item_type == "PA")
+                                )
+                            ).first()
+
+                            if existing_lot:
+                                # Add quantity to existing lot
+                                old_qty = existing_lot.qty
+                                existing_lot.qty += entrada_qty_pa
+                                existing_lot.status = "Aprovado"
+                                if entrada_validade_pa:
+                                    existing_lot.expiry = entrada_validade_pa
+                                if entrada_localizacao_pa:
+                                    existing_lot.location = entrada_localizacao_pa
+                                if entrada_custo_pa > 0:
+                                    existing_lot.avg_cost = entrada_custo_pa
+
+                                session.commit()
+
+                                # Register movement
+                                movement = StockMovement(
+                                    movement_type="Entrada",
+                                    item_type="PA",
+                                    item_id=selected_product.id,
+                                    item_code=selected_product.code,
+                                    item_name=selected_product.name,
+                                    lot_code=entrada_lote_pa,
+                                    qty=entrada_qty_pa,
+                                    uom=entrada_uom_pa,
+                                    reason="Entrada Manual",
+                                    notes=f"Adicionado ao lote existente. Quantidade anterior: {old_qty}",
+                                    user=st.session_state.get("user", {}).get("name", "Sistema")
+                                )
+                                session.add(movement)
+                                session.commit()
+
+                                st.success(f"✅ Quantidade adicionada ao lote '{entrada_lote_pa}'! Quantidade anterior: {old_qty} {existing_lot.uom} → Nova quantidade: {existing_lot.qty} {existing_lot.uom}")
+                                st.rerun()
+                            else:
+                                # Create new stock lot
+                                new_lot = StockLot(
+                                    item_type="PA",
+                                    item_id=selected_product.id,
+                                    lot_code=entrada_lote_pa,
+                                    qty=entrada_qty_pa,
+                                    uom=entrada_uom_pa,
+                                    expiry=entrada_validade_pa,
+                                    status="Aprovado",
+                                    avg_cost=entrada_custo_pa if entrada_custo_pa > 0 else None,
+                                    location=entrada_localizacao_pa if entrada_localizacao_pa else None
+                                )
+
+                                session.add(new_lot)
+                                session.commit()
+
+                                # Register movement
+                                movement = StockMovement(
+                                    movement_type="Entrada",
+                                    item_type="PA",
+                                    item_id=selected_product.id,
+                                    item_code=selected_product.code,
+                                    item_name=selected_product.name,
+                                    lot_code=entrada_lote_pa,
+                                    qty=entrada_qty_pa,
+                                    uom=entrada_uom_pa,
+                                    reason="Entrada Manual",
+                                    notes=f"Localização: {entrada_localizacao_pa}" if entrada_localizacao_pa else None,
+                                    user=st.session_state.get("user", {}).get("name", "Sistema")
+                                )
+                                session.add(movement)
+                                session.commit()
+
+                                st.success(f"✅ Entrada registrada com sucesso! Novo lote '{entrada_lote_pa}' - {entrada_qty_pa} {entrada_uom_pa} de {selected_product.name}")
+                                st.rerun()
+
+        st.markdown("---")
+
+    # Add manual stock withdrawal section
+    if has_permission("operator"):
+        st.markdown("---")
+        st.markdown("### ➖ **Dar Baixa Manual no Estoque**")
+        st.info("💡 Use esta funcionalidade para registrar saídas, perdas, ajustes ou transferências de produtos.")
+
+        with st.form("baixa_estoque_pa_form", clear_on_submit=True):
+            baixa_col1, baixa_col2, baixa_col3 = st.columns(3)
+
+            with baixa_col1:
+                # Get all stock lots with available quantity
+                with Session(engine) as session:
+                    available_lots_pa = session.exec(
+                        select(StockLot, Product.code, Product.name)
+                        .join(Product, StockLot.item_id == Product.id)
+                        .where(StockLot.item_type == "PA")
+                        .where(StockLot.qty > 0)
+                        .where(StockLot.status == "Aprovado")
+                        .where(Product.status == "ativo")
+                        .order_by(Product.code)
+                    ).all()
+
+                if not available_lots_pa:
+                    st.warning("⚠️ Nenhum lote disponível para baixa.")
+                else:
+                    lot_options_pa = [f"{p_code} - {p_name} | Lote: {lot.lot_code} | Disponível: {lot.qty:.2f} {lot.uom}" 
+                                   for lot, p_code, p_name in available_lots_pa]
+                    selected_lot_option_pa = st.selectbox("Selecionar Lote *", lot_options_pa, key="baixa_lot_pa")
+                    selected_lot_index_pa = lot_options_pa.index(selected_lot_option_pa)
+                    selected_lot_data_pa = available_lots_pa[selected_lot_index_pa]
+
+            with baixa_col2:
+                if available_lots_pa:
+                    max_qty_pa = selected_lot_data_pa[0].qty
+                    baixa_qty_pa = st.number_input(
+                        f"Quantidade a Dar Baixa (máx: {max_qty_pa:.2f}) *", 
+                        min_value=0.01, 
+                        max_value=float(max_qty_pa),
+                        value=min(1.0, float(max_qty_pa)), 
+                        step=0.01, 
+                        key="baixa_qty_pa"
+                    )
+                    st.caption(f"Unidade: {selected_lot_data_pa[0].uom}")
+
+            with baixa_col3:
+                if available_lots_pa:
+                    baixa_motivo_pa = st.selectbox(
+                        "Motivo da Baixa *",
+                        ["Venda", "Transferência", "Perda/Quebra", "Ajuste de Inventário", "Amostra", "Outros"],
+                        key="baixa_motivo_pa"
+                    )
+
+            if available_lots_pa:
+                baixa_observacoes_pa = st.text_area(
+                    "Observações",
+                    placeholder="Descreva o motivo da baixa em detalhes...",
+                    key="baixa_obs_pa"
+                )
+
+                submitted_baixa_pa = st.form_submit_button("🗑️ **Confirmar Baixa**", use_container_width=True, type="primary")
+
+                if submitted_baixa_pa:
+                    if baixa_qty_pa <= 0:
+                        st.error("A quantidade deve ser maior que zero.")
+                    else:
+                        with Session(engine) as session:
+                            lot_to_update = session.get(StockLot, selected_lot_data_pa[0].id)
+
+                            if lot_to_update and lot_to_update.qty >= baixa_qty_pa:
+                                old_qty = lot_to_update.qty
+                                lot_to_update.qty -= baixa_qty_pa
+
+                                session.commit()
+
+                                # Register movement
+                                movement = StockMovement(
+                                    movement_type="Saída",
+                                    item_type="PA",
+                                    item_id=selected_lot_data_pa[0].item_id,
+                                    item_code=selected_lot_data_pa[1],
+                                    item_name=selected_lot_data_pa[2],
+                                    lot_code=lot_to_update.lot_code,
+                                    qty=baixa_qty_pa,
+                                    uom=lot_to_update.uom,
+                                    reason=baixa_motivo_pa,
+                                    notes=baixa_observacoes_pa if baixa_observacoes_pa else None,
+                                    user=st.session_state.get("user", {}).get("name", "Sistema")
+                                )
+                                session.add(movement)
+                                session.commit()
+
+                                st.success(f"✅ Baixa registrada com sucesso!")
+                                st.info(f"""
+                                **Detalhes da Baixa:**
+                                - **Produto:** {selected_lot_data_pa[1]} - {selected_lot_data_pa[2]}
+                                - **Lote:** {lot_to_update.lot_code}
+                                - **Quantidade Baixada:** {baixa_qty_pa:.2f} {lot_to_update.uom}
+                                - **Quantidade Anterior:** {old_qty:.2f} {lot_to_update.uom}
+                                - **Quantidade Atual:** {lot_to_update.qty:.2f} {lot_to_update.uom}
+                                - **Motivo:** {baixa_motivo_pa}
+                                {f"- **Observações:** {baixa_observacoes_pa}" if baixa_observacoes_pa else ""}
+                                """)
+                                st.rerun()
+                            else:
+                                st.error("Erro: Quantidade indisponível ou lote não encontrado.")
+
+        st.markdown("---")
+
+    # Filters
+    filter_col1, filter_col2, filter_col3 = st.columns(3)
+
+    with filter_col1:
+        search_term_pa = st.text_input("🔍 Buscar Produto:", placeholder="Código ou nome...", key="search_pa")
+
+    with filter_col2:
+        status_filter_pa = st.selectbox("Status:", ["Todos", "Aprovado", "Quarentena", "Rejeitado"], key="status_pa")
+
+    with filter_col3:
+        product_type_filter = st.selectbox("Tipo:", ["Todos", "Acabado", "Semi-Acabado"], key="type_pa")
+
+    # Get products stock
     with Session(engine) as session:
-        pa_query = select(StockLot, Product.code, Product.name).join(
+        query = select(StockLot, Product.code, Product.name, Product.product_type).join(
             Product, StockLot.item_id == Product.id
         ).where(StockLot.item_type == "PA")
 
-        pa_results = session.exec(pa_query.order_by(Product.code)).all()
+        if search_term_pa:
+            query = query.where(
+                (Product.code.ilike(f"%{search_term_pa}%")) |
+                (Product.name.ilike(f"%{search_term_pa}%"))
+            )
 
-    if pa_results:
-        pa_data = []
-        for lot, product_code, product_name in pa_results:
-            value = lot.qty * (lot.avg_cost or 0)
+        if status_filter_pa != "Todos":
+            query = query.where(StockLot.status == status_filter_pa)
 
-            pa_data.append({
-                "ID": lot.id,
-                "Código Produto": product_code,
-                "Nome": product_name,
-                "Lote": lot.lot_code,
-                "Quantidade": lot.qty,
-                "UOM": lot.uom,
-                "Validade": lot.expiry.strftime("%d/%m/%Y") if lot.expiry else "N/A",
-                "Status": lot.status,
-                "Localização": lot.location or "N/A",
-                "Valor Total": f"R$ {value:.2f}"
-            })
+        if product_type_filter != "Todos":
+            query = query.where(Product.product_type == product_type_filter)
 
-        pa_df = pd.DataFrame(pa_data)
-        st.dataframe(pa_df, hide_index=True, use_container_width=True)
-    else:
-        st.info("Nenhum estoque de produto acabado encontrado.")
+        results = session.exec(query.order_by(Product.code)).all()
+
+        if results:
+            stock_data = []
+            for lot, product_code, product_name, product_type in results:
+                value = lot.qty * (lot.avg_cost or 0)
+
+                stock_data.append({
+                    "ID": lot.id,
+                    "Código Produto": product_code,
+                    "Nome": product_name,
+                    "Tipo": product_type,
+                    "Lote": lot.lot_code,
+                    "Quantidade": lot.qty,
+                    "UOM": lot.uom,
+                    "Validade": lot.expiry.strftime("%d/%m/%Y") if lot.expiry else "N/A",
+                    "Status": lot.status,
+                    "Localização": lot.location or "N/A",
+                    "Custo Médio": f"R$ {lot.avg_cost:.2f}" if lot.avg_cost else "N/A",
+                    "Valor Total": f"R$ {value:.2f}"
+                })
+
+            df = pd.DataFrame(stock_data)
+
+            # Editable table for managers
+            if has_permission("operator"):
+                edited_df = st.data_editor(
+                    df,
+                    hide_index=True,
+                    use_container_width=True,
+                    disabled=["ID", "Código Produto", "Nome", "Tipo", "Lote"],
+                    column_config={
+                        "Status": st.column_config.SelectboxColumn(
+                            "Status",
+                            options=["Aprovado", "Quarentena", "Rejeitado"],
+                            required=True
+                        ),
+                        "Quantidade": st.column_config.NumberColumn(
+                            "Quantidade",
+                            min_value=0.0,
+                            step=0.1
+                        )
+                    }
+                )
+
+                if st.button("💾 Salvar Alterações", key="save_pa"):
+                    with Session(engine) as session:
+                        for idx, row in edited_df.iterrows():
+                            lot = session.get(StockLot, row["ID"])
+                            if lot:
+                                lot.qty = row["Quantidade"]
+                                lot.status = row["Status"]
+                                lot.location = row["Localização"] if row["Localização"] != "N/A" else None
+
+                        session.commit()
+                        st.success("Alterações salvas com sucesso!")
+                        st.rerun()
+            else:
+                st.dataframe(df, hide_index=True, use_container_width=True)
+
+        else:
+            st.info("Nenhum estoque de produto encontrado.")
 
 with tab4:
     st.subheader("⚠️ Alertas de Estoque")

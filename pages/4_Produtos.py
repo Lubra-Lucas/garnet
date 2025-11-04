@@ -360,6 +360,7 @@ with tab2:
                 category = st.text_input("Categoria", placeholder="Categoria do produto")
 
             with col2:
+                product_type = st.selectbox("Tipo de Produto *", ["Acabado", "Semi-Acabado"])
                 unit_weight = st.number_input("Peso Unitário *", min_value=0.0, value=100.0, step=0.1)
                 unit_uom = st.selectbox("Unidade de Medida *", ["G", "ML", "UN"])
                 # Removed manual input for std_batch_weight
@@ -386,6 +387,7 @@ with tab2:
                                     "name": name,
                                     "client": client if client else None,
                                     "category": category if category else None,
+                                    "product_type": product_type,
                                     "unit_weight": unit_weight,
                                     "unit_uom": unit_uom,
                                     "std_batch_weight": 0 # Default to 0, will be updated by formulation

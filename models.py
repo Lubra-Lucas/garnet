@@ -59,6 +59,7 @@ class Product(SQLModel, table=True):
     name: str
     client: Optional[str] = None
     category: Optional[str] = None
+    product_type: str = Field(default="Acabado")  # Acabado ou Semi-Acabado
     unit_weight: float = Field(default=0.0)  # g ou ml
     unit_uom: str = Field(default="G")  # G, ML, UN
     std_batch_weight: float = Field(default=1500.0)  # gramas (1,5 kg)
