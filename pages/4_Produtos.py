@@ -202,6 +202,7 @@ with tab1:
                         edit_category = st.text_input("Categoria", value=selected_product.category or "")
 
                     with edit_col2:
+                        edit_product_type = st.selectbox("Tipo de Produto *", ["Acabado", "Semi-Acabado"], index=0 if selected_product.product_type == "Acabado" else 1)
                         edit_unit_weight = st.number_input("Peso Unitário *", min_value=0.0, value=float(selected_product.unit_weight), step=0.1)
                         edit_unit_uom = st.selectbox("Unidade de Medida *", ["G", "ML", "UN"], index=["G", "ML", "UN"].index(selected_product.unit_uom))
                         st.info(f"Lote Padrão: {selected_product.std_batch_weight} g (calculado automaticamente pela formulação)")
@@ -233,6 +234,7 @@ with tab1:
                                             product_to_update.name = edit_name
                                             product_to_update.client = edit_client if edit_client else None
                                             product_to_update.category = edit_category if edit_category else None
+                                            product_to_update.product_type = edit_product_type
                                             product_to_update.unit_weight = edit_unit_weight
                                             product_to_update.unit_uom = edit_unit_uom
                                             product_to_update.std_batch_weight = selected_product.std_batch_weight # Keep calculated value
