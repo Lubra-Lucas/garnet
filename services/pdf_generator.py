@@ -797,15 +797,26 @@ def generate_production_order_pdf(production_order, product, requirements):
     story.append(Spacer(1, 0.3*cm))
     
     if requirements:
-        # Cabeçalho da tabela
+        # Criar estilo para cabeçalhos com quebra de linha
+        header_style = ParagraphStyle(
+            'HeaderText',
+            parent=styles['Normal'],
+            fontSize=8,
+            leading=9,
+            alignment=TA_CENTER,
+            fontName='Helvetica-Bold',
+            textColor=colors.whitesmoke
+        )
+        
+        # Cabeçalho da tabela com Paragraphs para quebra de linha
         items_data = [[
-            "#", 
-            "Código MP",
-            "Matéria-Prima", 
-            "Necessário (KG)", 
-            "Disponível (KG)",
-            "Necessidade Líquida (KG)",
-            "Status"
+            Paragraph("#", header_style), 
+            Paragraph("Código<br/>MP", header_style),
+            Paragraph("Matéria-Prima", header_style), 
+            Paragraph("Necessário<br/>(KG)", header_style), 
+            Paragraph("Disponível<br/>(KG)", header_style),
+            Paragraph("Necessidade<br/>Líquida (KG)", header_style),
+            Paragraph("Status", header_style)
         ]]
         
         # Criar estilo para texto pequeno com quebra de linha
