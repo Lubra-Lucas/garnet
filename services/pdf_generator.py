@@ -698,6 +698,235 @@ def generate_stock_report_pdf(stock_items, user_role=None):
     return filename
 
 
+def generate_production_order_pdf(production_order, product, requirements):
+    """
+    Gera um PDF formal de ordem de produção
+    
+    Args:
+        production_order: Objeto ProductionOrder com os dados da ordem
+        product: Objeto Product com dados do produto
+        requirements: Lista de dicionários com necessidades de matéria-prima (do mrp_requirements)
+    
+    Returns:
+        str: Caminho do arquivo PDF gerado
+    """
+    # Criar diretório temporário se não existir
+    os.makedirs("temp", exist_ok=True)
+    
+    # Nome do arquivo
+    filename = f"temp/Ordem_Producao_{production_order.code}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+    
+    # Criar documento
+    doc = SimpleDocTemplate(filename, pagesize=A4,
+                           rightMargin=2*cm, leftMargin=2*cm,
+                           topMargin=2*cm, bottomMargin=2*cm)
+    
+    # Container para elementos do PDF
+    story = []
+    
+    # Estilos
+    styles = getSampleStyleSheet()
+    
+    # Estilo do subtítulo
+    subtitle_style = ParagraphStyle(
+        'CustomSubtitle',
+        parent=styles['Heading2'],
+        fontSize=14,
+        textColor=colors.HexColor('#2E4A6B'),
+        spaceAfter=12,
+        alignment=TA_CENTER,
+        fontName='Helvetica-Bold'
+    )
+    
+    # Estilo normal
+    normal_style = ParagraphStyle(
+        'CustomNormal',
+        parent=styles['Normal'],
+        fontSize=11,
+        spaceAfter=6,
+        alignment=TA_LEFT
+    )
+    
+    # Cabeçalho da empresa com logo
+    logo_path = "attached_assets/WhatsApp Image 2025-10-22 at 16.59.19_1761163206748.jpeg"
+    
+    if os.path.exists(logo_path):
+        try:
+            logo = Image(logo_path, width=4*cm, height=2*cm)
+            logo.hAlign = 'CENTER'
+            story.append(logo)
+            story.append(Spacer(1, 0.5*cm))
+        except Exception as e:
+            print(f"Erro ao carregar logo: {e}")
+    
+    # Título
+    story.append(Paragraph("ORDEM DE PRODUÇÃO", subtitle_style))
+    story.append(Spacer(1, 0.3*cm))
+    
+    # Dados da ordem de produção
+    data_op = [
+        ["Código da Ordem:", production_order.code],
+        ["Produto:", f"{product.code} - {product.name}"],
+        ["Quantidade a Produzir:", f"{production_order.qty_to_produce:.0f} unidades"],
+        ["Lote Planejado:", production_order.planned_lot or "N/A"],
+        ["Data Início:", production_order.start_date.strftime("%d/%m/%Y") if production_order.start_date else "N/A"],
+        ["Data Fim:", production_order.end_date.strftime("%d/%m/%Y") if production_order.end_date else "N/A"],
+        ["Centro de Trabalho:", production_order.workcenter or "N/A"],
+        ["Status:", production_order.status],
+        ["Criado Por:", production_order.created_by or "N/A"],
+        ["Data de Criação:", production_order.created_at.strftime("%d/%m/%Y %H:%M") if production_order.created_at else "N/A"]
+    ]
+    
+    table_info = Table(data_op, colWidths=[5*cm, 10*cm])
+    table_info.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 11),
+        ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#2E4A6B')),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+    ]))
+    
+    story.append(table_info)
+    story.append(Spacer(1, 0.5*cm))
+    
+    # Tabela de necessidades de matéria-prima
+    story.append(Paragraph("<b>Necessidades de Matéria-Prima:</b>", normal_style))
+    story.append(Spacer(1, 0.3*cm))
+    
+    if requirements:
+        # Cabeçalho da tabela
+        items_data = [[
+            "#", 
+            "Código MP",
+            "Matéria-Prima", 
+            "Necessário (KG)", 
+            "Disponível (KG)",
+            "Necessidade Líquida (KG)",
+            "Status"
+        ]]
+        
+        # Criar estilo para texto pequeno com quebra de linha
+        small_style = ParagraphStyle(
+            'SmallText',
+            parent=styles['Normal'],
+            fontSize=8,
+            leading=10,
+            alignment=TA_LEFT
+        )
+        
+        # Adicionar dados dos itens
+        for idx, req in enumerate(requirements, 1):
+            # Converter quantidades para KG para exibição
+            def convert_to_kg(qty, original_unit):
+                if original_unit in ["G", "GRAMAS", "GRAMA"]:
+                    return qty / 1000
+                elif original_unit in ["KG"]:
+                    return qty
+                elif original_unit in ["L", "LITRO", "LITROS"]:
+                    return qty  # Assuming density ~1
+                elif original_unit in ["ML", "MILILITRO", "MILILITROS"]:
+                    return qty / 1000
+                else:
+                    return qty
+            
+            required_kg = convert_to_kg(req['required_qty'], req['uom'])
+            available_kg = convert_to_kg(req['available_qty'], req['uom'])
+            net_requirement_kg = convert_to_kg(req['net_requirement'], req['uom'])
+            
+            # Status message
+            status = "✅ OK" if req["net_requirement"] == 0 else f"⚠️ Falta"
+            
+            # Criar Paragraph para o nome da matéria-prima
+            rm_name_paragraph = Paragraph(req["raw_material_name"], small_style)
+            
+            items_data.append([
+                str(idx),
+                req["raw_material_code"],
+                rm_name_paragraph,
+                f"{required_kg:.3f}",
+                f"{available_kg:.3f}",
+                f"{net_requirement_kg:.3f}" if net_requirement_kg > 0 else "0",
+                status
+            ])
+        
+        # Larguras das colunas
+        table_items = Table(
+            items_data, 
+            colWidths=[0.7*cm, 2*cm, 5*cm, 2.5*cm, 2.5*cm, 2.8*cm, 1.8*cm]
+        )
+        
+        table_items.setStyle(TableStyle([
+            # Cabeçalho
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2E4A6B')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 8),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, 0), 'MIDDLE'),
+            
+            # Corpo da tabela
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 1), (-1, -1), 8),
+            ('ALIGN', (0, 1), (0, -1), 'CENTER'),  # Coluna #
+            ('ALIGN', (1, 1), (1, -1), 'CENTER'),  # Código MP
+            ('ALIGN', (2, 1), (2, -1), 'LEFT'),    # Nome (com quebra de linha)
+            ('ALIGN', (3, 1), (-1, -1), 'CENTER'), # Restante centralizado
+            ('VALIGN', (0, 1), (-1, -1), 'TOP'),   # Alinhamento vertical superior
+            
+            # Bordas
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            
+            # Padding
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+            ('TOPPADDING', (0, 0), (-1, 0), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+            ('TOPPADDING', (0, 1), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 8),
+            
+            # Zebra striping
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F8F9FA')]),
+            
+            # Permitir quebra de linha
+            ('WORDWRAP', (2, 1), (2, -1), True),
+        ]))
+        
+        story.append(table_items)
+        story.append(Spacer(1, 0.5*cm))
+        
+        # Informação sobre o cálculo
+        if requirements:
+            units_per_batch = requirements[0]["units_per_batch"]
+            proportion = requirements[0]["proportion_factor"]
+            calc_info = f"💡 Cálculo baseado em: {production_order.qty_to_produce:.0f} unidades ÷ {units_per_batch:.0f} unidades/lote = {proportion:.3f}x a formulação"
+            story.append(Paragraph(calc_info, normal_style))
+            story.append(Spacer(1, 1*cm))
+    else:
+        story.append(Paragraph("Produto sem formulação aprovada ou sem necessidades calculadas.", normal_style))
+        story.append(Spacer(1, 1*cm))
+    
+    # Rodapé
+    texto_empresa = "<b>GARNET COSMÉTICOS</b>"
+    story.append(Paragraph(texto_empresa, normal_style))
+    story.append(Spacer(1, 0.5*cm))
+    
+    # Informações de contato
+    texto_contato = """
+    <b>Contato:</b><br/>
+    📧 Email: faleconosco@garnetcosmeticos.com.br<br/>
+    📱 WhatsApp: 11 98153-1188
+    """
+    story.append(Paragraph(texto_contato, normal_style))
+    
+    # Gerar PDF
+    doc.build(story)
+    
+    return filename
+
+
 def generate_formulation_pdf(formulation, product, items, user_role=None):
     """
     Gera um PDF formal de formulação de produto

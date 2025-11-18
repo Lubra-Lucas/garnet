@@ -331,6 +331,48 @@ with tab1:
                 else:
                     st.info("Produto sem formulação aprovada ou sem necessidades calculadas.")
 
+            # PDF generation section
+            st.markdown("---")
+            st.markdown("### 📄 Gerar PDF da Ordem de Produção")
+            
+            if st.button("📄 Gerar PDF", type="primary", use_container_width=True):
+                try:
+                    from services.pdf_generator import generate_production_order_pdf
+                    
+                    with get_session() as session:
+                        # Get production order details
+                        po = session.get(ProductionOrder, selected_po.id)
+                        product = session.get(Product, po.product_id)
+                        
+                        # Get MRP requirements
+                        requirements = mrp_requirements(session, po.product_id, po.qty_to_produce)
+                        
+                        # Generate PDF
+                        pdf_path = generate_production_order_pdf(po, product, requirements)
+                        
+                        # Read PDF file
+                        with open(pdf_path, "rb") as pdf_file:
+                            pdf_bytes = pdf_file.read()
+                        
+                        # Download button
+                        st.download_button(
+                            label="📥 Baixar PDF da Ordem de Produção",
+                            data=pdf_bytes,
+                            file_name=f"Ordem_Producao_{po.code}.pdf",
+                            mime="application/pdf",
+                            use_container_width=True
+                        )
+                        
+                        st.success("PDF gerado com sucesso!")
+                        
+                        # Limpar arquivo temporário
+                        import os
+                        if os.path.exists(pdf_path):
+                            os.remove(pdf_path)
+                            
+                except Exception as e:
+                    st.error(f"Erro ao gerar PDF: {str(e)}")
+            
             # Delete production order section (only for operators)
             if has_permission("operator"):
                 st.markdown("---")
