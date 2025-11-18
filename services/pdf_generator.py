@@ -771,7 +771,6 @@ def generate_production_order_pdf(production_order, product, requirements):
         ["Lote Planejado:", production_order.planned_lot or "N/A"],
         ["Data Início:", production_order.start_date.strftime("%d/%m/%Y") if production_order.start_date else "N/A"],
         ["Data Fim:", production_order.end_date.strftime("%d/%m/%Y") if production_order.end_date else "N/A"],
-        ["Centro de Trabalho:", production_order.workcenter or "N/A"],
         ["Status:", production_order.status],
         ["Criado Por:", production_order.created_by or "N/A"],
         ["Data de Criação:", production_order.created_at.strftime("%d/%m/%Y %H:%M") if production_order.created_at else "N/A"]
