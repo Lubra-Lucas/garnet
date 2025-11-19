@@ -35,8 +35,11 @@ else:
 with tab1:
     st.subheader("Contas a Pagar")
 
+    # Search field
+    search_term_payable = st.text_input("🔍 Buscar por documento, fornecedor ou observações:", key="search_payable")
+
     # Filters
-    filter_col1, filter_col2, filter_col3 = st.columns(3)
+    filter_col1, filter_col2, filter_col3, filter_col4, filter_col5 = st.columns(5)
 
     with filter_col1:
         status_filter = st.selectbox("Status:", ["Todos", "Pendente", "Pago", "Vencido"])
@@ -52,11 +55,32 @@ with tab1:
     with filter_col3:
         date_range = st.selectbox("Período:", ["Todos", "Vence Hoje", "Próximos 7 dias", "Próximos 30 dias", "Vencidos"])
 
+    with filter_col4:
+        # Get unique expense types for filter
+        with Session(engine) as session:
+            expense_types = session.exec(select(Payable.expense_type).distinct().where(Payable.expense_type.isnot(None))).all()
+            expense_type_options = ["Todos"] + [et for et in expense_types if et]
+
+        expense_type_filter = st.selectbox("Tipo de Gasto:", expense_type_options)
+
+    with filter_col5:
+        value_min = st.number_input("Valor mínimo:", min_value=0.0, value=0.0, step=100.0, key="payable_min")
+        value_max = st.number_input("Valor máximo:", min_value=0.0, value=0.0, step=100.0, key="payable_max")
+
     # Get payables based on filters
     with Session(engine) as session:
         query = select(Payable, Supplier.name).outerjoin(
             Supplier, Payable.supplier_id == Supplier.id
         ).where(Payable.status != "Controle")  # Exclude control records
+
+        # Apply search filter
+        if search_term_payable:
+            search_pattern = f"%{search_term_payable}%"
+            query = query.where(
+                (Payable.doc_ref.ilike(search_pattern)) |
+                (Supplier.name.ilike(search_pattern)) |
+                (Payable.notes.ilike(search_pattern))
+            )
 
         # Apply filters
         if status_filter != "Todos":
@@ -67,6 +91,15 @@ with tab1:
 
         if supplier_filter != "Todos":
             query = query.where(Supplier.name == supplier_filter)
+
+        if expense_type_filter != "Todos":
+            query = query.where(Payable.expense_type == expense_type_filter)
+
+        # Apply value filters
+        if value_min > 0:
+            query = query.where(Payable.value >= value_min)
+        if value_max > 0:
+            query = query.where(Payable.value <= value_max)
 
         # Apply date filters
         if date_range == "Vence Hoje":
@@ -509,8 +542,11 @@ with tab1:
 with tab2:
     st.subheader("🧾 Contas a Receber")
 
+    # Search field
+    search_term_receivable = st.text_input("🔍 Buscar por documento, cliente ou observações:", key="search_receivable")
+
     # Filters for accounts receivable
-    filter_ar_col1, filter_ar_col2, filter_ar_col3 = st.columns(3)
+    filter_ar_col1, filter_ar_col2, filter_ar_col3, filter_ar_col4, filter_ar_col5 = st.columns(5)
 
     with filter_ar_col1:
         status_ar_filter = st.selectbox("Status:", ["Todos", "Pendente", "Recebido", "Vencido"], key="ar_status")
@@ -526,9 +562,30 @@ with tab2:
     with filter_ar_col3:
         date_range_ar = st.selectbox("Período:", ["Todos", "Recebe Hoje", "Próximos 7 dias", "Próximos 30 dias", "Atrasados"], key="ar_date_range")
 
+    with filter_ar_col4:
+        # Get unique revenue types for filter
+        with Session(engine) as session:
+            revenue_types = session.exec(select(Receivable.revenue_type).distinct().where(Receivable.revenue_type.isnot(None))).all()
+            revenue_type_options = ["Todos"] + [rt for rt in revenue_types if rt]
+
+        revenue_type_filter = st.selectbox("Tipo de Receita:", revenue_type_options)
+
+    with filter_ar_col5:
+        value_ar_min = st.number_input("Valor mínimo:", min_value=0.0, value=0.0, step=100.0, key="receivable_min")
+        value_ar_max = st.number_input("Valor máximo:", min_value=0.0, value=0.0, step=100.0, key="receivable_max")
+
     # Get receivables based on filters
     with Session(engine) as session:
         query = select(Receivable).where(Receivable.status != "Controle")  # Exclude control records
+
+        # Apply search filter
+        if search_term_receivable:
+            search_pattern = f"%{search_term_receivable}%"
+            query = query.where(
+                (Receivable.doc_ref.ilike(search_pattern)) |
+                (Receivable.customer_name.ilike(search_pattern)) |
+                (Receivable.notes.ilike(search_pattern))
+            )
 
         # Apply filters
         if status_ar_filter != "Todos":
@@ -539,6 +596,15 @@ with tab2:
 
         if customer_filter != "Todos":
             query = query.where(Receivable.customer_name == customer_filter)
+
+        if revenue_type_filter != "Todos":
+            query = query.where(Receivable.revenue_type == revenue_type_filter)
+
+        # Apply value filters
+        if value_ar_min > 0:
+            query = query.where(Receivable.value >= value_ar_min)
+        if value_ar_max > 0:
+            query = query.where(Receivable.value <= value_ar_max)
 
         # Apply date filters
         if date_range_ar == "Recebe Hoje":
