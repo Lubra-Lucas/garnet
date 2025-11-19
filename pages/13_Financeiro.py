@@ -269,6 +269,17 @@ with tab1:
                                                          index=0 if payable_to_edit.status == "Pendente" else 1)
                                 edit_notes = st.text_area("Observações", value=payable_to_edit.notes or "")
                             
+                            # PDF file upload
+                            st.markdown("**Anexar/Atualizar Nota Fiscal (PDF)**")
+                            if payable_to_edit.xml_file_path:
+                                st.info(f"PDF atual: {payable_to_edit.xml_file_path.split('/')[-1]}")
+                            edit_xml_file = st.file_uploader(
+                                "Selecione o arquivo PDF da nota fiscal (deixe em branco para manter o atual)", 
+                                type=['pdf'], 
+                                help="Faça upload do arquivo PDF da nota fiscal",
+                                key="edit_payable_pdf"
+                            )
+                            
                             form_col1, form_col2 = st.columns(2)
                             
                             with form_col1:
@@ -276,6 +287,17 @@ with tab1:
                                     if not edit_doc_ref or edit_value <= 0:
                                         st.error("Documento e valor são obrigatórios.")
                                     else:
+                                        import os
+                                        
+                                        # Handle PDF file upload
+                                        if edit_xml_file:
+                                            upload_dir = "uploads/pdf_files"
+                                            os.makedirs(upload_dir, exist_ok=True)
+                                            edit_xml_file_path = os.path.join(upload_dir, f"{edit_doc_ref}_{edit_xml_file.name}")
+                                            with open(edit_xml_file_path, "wb") as f:
+                                                f.write(edit_xml_file.getbuffer())
+                                            payable_to_edit.xml_file_path = edit_xml_file_path
+                                        
                                         payable_to_edit.supplier_id = edit_supplier_id
                                         payable_to_edit.doc_ref = edit_doc_ref
                                         payable_to_edit.expense_type = edit_expense_type if edit_expense_type else None
@@ -759,6 +781,17 @@ with tab2:
                                                             index=0 if receivable_to_edit.status == "Pendente" else 1)
                                 edit_notes_ar = st.text_area("Observações", value=receivable_to_edit.notes or "")
                             
+                            # PDF file upload
+                            st.markdown("**Anexar/Atualizar Nota Fiscal (PDF)**")
+                            if receivable_to_edit.xml_file_path:
+                                st.info(f"PDF atual: {receivable_to_edit.xml_file_path.split('/')[-1]}")
+                            edit_xml_file_ar = st.file_uploader(
+                                "Selecione o arquivo PDF da nota fiscal (deixe em branco para manter o atual)", 
+                                type=['pdf'], 
+                                help="Faça upload do arquivo PDF da nota fiscal",
+                                key="edit_receivable_pdf"
+                            )
+                            
                             form_ar_col1, form_ar_col2 = st.columns(2)
                             
                             with form_ar_col1:
@@ -766,6 +799,17 @@ with tab2:
                                     if not edit_doc_ref_ar or edit_value_ar <= 0:
                                         st.error("Documento e valor são obrigatórios.")
                                     else:
+                                        import os
+                                        
+                                        # Handle PDF file upload
+                                        if edit_xml_file_ar:
+                                            upload_dir = "uploads/pdf_files"
+                                            os.makedirs(upload_dir, exist_ok=True)
+                                            edit_xml_file_path_ar = os.path.join(upload_dir, f"{edit_doc_ref_ar}_{edit_xml_file_ar.name}")
+                                            with open(edit_xml_file_path_ar, "wb") as f:
+                                                f.write(edit_xml_file_ar.getbuffer())
+                                            receivable_to_edit.xml_file_path = edit_xml_file_path_ar
+                                        
                                         receivable_to_edit.customer_name = edit_customer_name if edit_customer_name else None
                                         receivable_to_edit.doc_ref = edit_doc_ref_ar
                                         receivable_to_edit.revenue_type = edit_revenue_type if edit_revenue_type else None
