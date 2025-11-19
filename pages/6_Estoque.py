@@ -1024,7 +1024,7 @@ with tab3:
     with Session(engine) as session:
         query = select(StockLot, Product.code, Product.name, Product.product_type).join(
             Product, StockLot.item_id == Product.id
-        ).where(StockLot.item_type == "PA")
+        ).where(StockLot.item_type == "PA").where(StockLot.qty > 0)
 
         if search_term_pa:
             query = query.where(
