@@ -763,11 +763,22 @@ def generate_production_order_pdf(production_order, product, requirements):
     story.append(Paragraph("ORDEM DE PRODUÇÃO", subtitle_style))
     story.append(Spacer(1, 0.3*cm))
     
+    # Calculate proportional KG based on formulation
+    if product.unit_weight > 0:
+        units_per_batch = product.std_batch_weight / product.unit_weight
+    else:
+        units_per_batch = 1.0
+    
+    proportion = production_order.qty_to_produce / units_per_batch if units_per_batch > 0 else 1.0
+    proportional_kg = (product.std_batch_weight * proportion) / 1000  # Convert g to kg
+    
+    qty_display = f"{production_order.qty_to_produce:.0f} unidades / {proportional_kg:.3f} kg (proporcional à formulação)"
+    
     # Dados da ordem de produção
     data_op = [
         ["Código da Ordem:", production_order.code],
         ["Produto:", f"{product.code} - {product.name}"],
-        ["Quantidade a Produzir:", f"{production_order.qty_to_produce:.0f} unidades"],
+        ["Quantidade a Produzir:", qty_display],
         ["Lote Planejado:", production_order.planned_lot or "N/A"],
         ["Data Início:", production_order.start_date.strftime("%d/%m/%Y") if production_order.start_date else "N/A"],
         ["Data Fim:", production_order.end_date.strftime("%d/%m/%Y") if production_order.end_date else "N/A"],
