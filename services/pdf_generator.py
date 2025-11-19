@@ -772,7 +772,7 @@ def generate_production_order_pdf(production_order, product, requirements):
     proportion = production_order.qty_to_produce / units_per_batch if units_per_batch > 0 else 1.0
     proportional_kg = (product.std_batch_weight * proportion) / 1000  # Convert g to kg
     
-    qty_display = f"{production_order.qty_to_produce:.0f} unidades / {proportional_kg:.3f} kg (proporcional à formulação)"
+    qty_display = f"{production_order.qty_to_produce:.0f} unidades / {proportional_kg:.3f} kg"
     
     # Dados da ordem de produção
     data_op = [
