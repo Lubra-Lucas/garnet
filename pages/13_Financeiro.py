@@ -145,6 +145,7 @@ with tab1:
                 "ID": payable.id,
                 "Status": status_icon,
                 "Fornecedor": supplier_name or "N/A",
+                "Empresa": payable.empresa or "N/A",
                 "Documento": payable.doc_ref + installment_info,
                 "Tipo de Gasto": payable.expense_type or "N/A",
                 "Valor": f"R$ {payable.value:,.2f}",
@@ -156,19 +157,23 @@ with tab1:
             })
 
         # Summary metrics
-        metrics_col1, metrics_col2, metrics_col3, metrics_col4 = st.columns(4)
+        if has_permission("manager"):
+            metrics_col1, metrics_col2, metrics_col3, metrics_col4 = st.columns(4)
 
-        with metrics_col1:
-            st.metric("Total a Pagar", f"R$ {total_pending:,.2f}")
+            with metrics_col1:
+                st.metric("Total a Pagar", f"R$ {total_pending:,.2f}")
 
-        with metrics_col2:
-            st.metric("Total Vencido", f"R$ {total_overdue:,.2f}")
+            with metrics_col2:
+                st.metric("Total Vencido", f"R$ {total_overdue:,.2f}")
 
-        with metrics_col3:
-            today_due = sum(payable.value for payable, _ in results if payable.due_date == date.today())
-            st.metric("Vence Hoje", f"R$ {today_due:,.2f}")
+            with metrics_col3:
+                today_due = sum(payable.value for payable, _ in results if payable.due_date == date.today())
+                st.metric("Vence Hoje", f"R$ {today_due:,.2f}")
 
-        with metrics_col4:
+            with metrics_col4:
+                st.metric("Total de Títulos", len(payable_data))
+        else:
+            # Operadores veem apenas o total de títulos
             st.metric("Total de Títulos", len(payable_data))
 
         # Display table
@@ -182,7 +187,7 @@ with tab1:
                 df,
                 hide_index=True,
                 use_container_width=True,
-                disabled=["ID", "Status", "Fornecedor", "Documento", "Dias", "PDF"],
+                disabled=["ID", "Status", "Fornecedor", "Empresa", "Documento", "Dias", "PDF"],
                 column_config={
                     "Status Pag.": st.column_config.SelectboxColumn(
                         "Status Pagamento",
@@ -260,6 +265,7 @@ with tab1:
                                     edit_supplier_id = int(edit_supplier_option.split("ID: ")[1].split(")")[0])
                                 
                                 edit_doc_ref = st.text_input("Documento *", value=payable_to_edit.doc_ref)
+                                edit_empresa = st.text_input("Empresa Pagante", value=payable_to_edit.empresa or "")
                                 edit_expense_type = st.text_input("Tipo de Gasto", value=payable_to_edit.expense_type or "")
                                 edit_value = st.number_input("Valor *", min_value=0.0, step=0.01, value=float(payable_to_edit.value))
                             
@@ -300,6 +306,7 @@ with tab1:
                                         
                                         payable_to_edit.supplier_id = edit_supplier_id
                                         payable_to_edit.doc_ref = edit_doc_ref
+                                        payable_to_edit.empresa = edit_empresa if edit_empresa else None
                                         payable_to_edit.expense_type = edit_expense_type if edit_expense_type else None
                                         payable_to_edit.value = edit_value
                                         payable_to_edit.due_date = edit_due_date
