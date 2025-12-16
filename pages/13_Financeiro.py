@@ -1544,6 +1544,51 @@ if tab5:  # Only available for managers
                 })
             expense_df = pd.DataFrame(expense_data)
             st.dataframe(expense_df, hide_index=True, use_container_width=True)
+            
+            # Select expense type to view details
+            st.markdown("---")
+            st.subheader("📄 Detalhes das Contas - Selecionar Tipo de Gasto")
+            
+            selected_expense_type = st.selectbox(
+                "Selecione um tipo de gasto para visualizar as contas:",
+                options=list(expense_type_analysis.keys()),
+                key="selected_expense_type"
+            )
+            
+            if selected_expense_type:
+                # Filter payables by selected expense type and month
+                filtered_payables = [p for p in month_payables if (p.expense_type or "Não Classificado") == selected_expense_type]
+                
+                if filtered_payables:
+                    st.markdown(f"#### Contas a Pagar - {selected_expense_type}")
+                    
+                    payables_details = []
+                    for payable in filtered_payables:
+                        supplier_name = "Não Informado"
+                        if payable.supplier_id:
+                            supplier = session.get(Supplier, payable.supplier_id)
+                            supplier_name = supplier.name if supplier else "Não Informado"
+                        
+                        # Status icon
+                        if payable.status == "Pago":
+                            status_icon = "✅"
+                        else:
+                            status_icon = "⏳"
+                        
+                        payables_details.append({
+                            "Status": status_icon,
+                            "Documento": payable.doc_ref,
+                            "Fornecedor": supplier_name,
+                            "Valor": f"R$ {payable.value:,.2f}",
+                            "Vencimento": payable.due_date.strftime("%d/%m/%Y"),
+                            "Pagamento": payable.status,
+                            "Observações": payable.notes or "-"
+                        })
+                    
+                    details_df = pd.DataFrame(payables_details)
+                    st.dataframe(details_df, hide_index=True, use_container_width=True)
+                else:
+                    st.info(f"Nenhuma conta encontrada para o tipo de gasto '{selected_expense_type}'.")
 
             # Budget chart for payables
             chart_data = []
