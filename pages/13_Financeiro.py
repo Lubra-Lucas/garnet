@@ -690,19 +690,23 @@ with tab2:
             })
 
         # Summary metrics
-        metrics_ar_col1, metrics_ar_col2, metrics_ar_col3, metrics_ar_col4 = st.columns(4)
+        if has_permission("manager"):
+            metrics_ar_col1, metrics_ar_col2, metrics_ar_col3, metrics_ar_col4 = st.columns(4)
 
-        with metrics_ar_col1:
-            st.metric("Total a Receber", f"R$ {total_pending_ar:,.2f}")
+            with metrics_ar_col1:
+                st.metric("Total a Receber", f"R$ {total_pending_ar:,.2f}")
 
-        with metrics_ar_col2:
-            st.metric("Total Vencido", f"R$ {total_overdue_ar:,.2f}")
+            with metrics_ar_col2:
+                st.metric("Total Vencido", f"R$ {total_overdue_ar:,.2f}")
 
-        with metrics_ar_col3:
-            today_due_ar = sum(r.value for r in receivables if r.due_date == date.today())
-            st.metric("Recebe Hoje", f"R$ {today_due_ar:,.2f}")
+            with metrics_ar_col3:
+                today_due_ar = sum(r.value for r in receivables if r.due_date == date.today())
+                st.metric("Recebe Hoje", f"R$ {today_due_ar:,.2f}")
 
-        with metrics_ar_col4:
+            with metrics_ar_col4:
+                st.metric("Total de Títulos", len(receivable_data))
+        else:
+            # Operadores veem apenas o total de títulos
             st.metric("Total de Títulos", len(receivable_data))
 
         # Display table
