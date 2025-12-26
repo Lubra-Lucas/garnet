@@ -83,17 +83,16 @@ with tab1:
         # Monthly production trend
         with Session(engine) as session:
             start_date_param = (datetime.now() - timedelta(days=180)).date()
-            monthly_production = session.exec(
-                text("""
-                    SELECT strftime('%Y-%m', created_at) AS month,
-                           COUNT(*) AS count,
-                           SUM(qty_to_produce) AS total_qty
-                    FROM productionorder
-                    WHERE created_at >= :start_date
-                    GROUP BY strftime('%Y-%m', created_at)
-                    ORDER BY strftime('%Y-%m', created_at)
-                """)
-            ).params(start_date=start_date_param).all()
+            query = text("""
+                SELECT strftime('%Y-%m', created_at) AS month,
+                       COUNT(*) AS count,
+                       SUM(qty_to_produce) AS total_qty
+                FROM productionorder
+                WHERE created_at >= :start_date
+                GROUP BY strftime('%Y-%m', created_at)
+                ORDER BY strftime('%Y-%m', created_at)
+            """)
+            monthly_production = session.execute(query, {"start_date": start_date_param}).all()
 
             if monthly_production:
                 prod_data = []
@@ -131,8 +130,7 @@ with tab1:
         # Purchase orders trend
         with Session(engine) as session:
             start_date_purchases = (date.today() - timedelta(days=180))
-            monthly_purchases = session.exec(
-                text("""
+            query_purchases = text("""
                 SELECT strftime('%Y-%m', order_date) as month,
                        COUNT(id) as count,
                        SUM(total_value) as total_value
@@ -140,8 +138,8 @@ with tab1:
                 WHERE order_date >= :start_date
                 GROUP BY strftime('%Y-%m', order_date)
                 ORDER BY strftime('%Y-%m', order_date)
-                """)
-            ).params(start_date=start_date_purchases).all()
+            """)
+            monthly_purchases = session.execute(query_purchases, {"start_date": start_date_purchases}).all()
 
             if monthly_purchases:
                 purch_data = []
@@ -483,8 +481,7 @@ with tab3:
                 st.markdown("#### 📊 Tendência de Qualidade")
 
                 start_date_quality = (date.today() - timedelta(days=180))
-                quality_trend = session.exec(
-                    text("""
+                query_quality = text("""
                     SELECT strftime('%Y-%m', test_date) as month,
                            COUNT(id) as total,
                            SUM(CASE WHEN status = 'Conforme' THEN 1 ELSE 0 END) as passed
@@ -492,8 +489,8 @@ with tab3:
                     WHERE test_date >= :start_date
                     GROUP BY strftime('%Y-%m', test_date)
                     ORDER BY strftime('%Y-%m', test_date)
-                    """)
-                ).params(start_date=start_date_quality).all()
+                """)
+                quality_trend = session.execute(query_quality, {"start_date": start_date_quality}).all()
 
                 if quality_trend:
                     trend_data = []
