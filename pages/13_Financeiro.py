@@ -216,12 +216,12 @@ with tab1:
 
             with action_col2:
                 # Edit payable
-                payable_options = [f"{row['Documento']} - {row['Fornecedor']}" for _, row in df.iterrows()]
+                payable_options = [f"{row['Fornecedor']} - {row['Valor']}" for _, row in df.iterrows()]
                 if payable_options:
                     selected_payable_option = st.selectbox("Selecionar conta para editar:", [""] + payable_options, key="edit_payable_select")
                     
                     if selected_payable_option and st.button("✏️ Editar Conta"):
-                        selected_payable_id = df[df.apply(lambda x: f"{x['Documento']} - {x['Fornecedor']}" == selected_payable_option, axis=1)]['ID'].iloc[0]
+                        selected_payable_id = df[df.apply(lambda x: f"{x['Fornecedor']} - {x['Valor']}" == selected_payable_option, axis=1)]['ID'].iloc[0]
                         st.session_state.edit_payable_id = int(selected_payable_id)
                         st.session_state.show_edit_payable_form = True
 
@@ -231,7 +231,7 @@ with tab1:
                     selected_delete_payable_option = st.selectbox("Selecionar conta para excluir:", [""] + payable_options, key="delete_payable_select")
                     
                     if selected_delete_payable_option and st.button("🗑️ Excluir Conta"):
-                        selected_delete_payable_id = df[df.apply(lambda x: f"{x['Documento']} - {x['Fornecedor']}" == selected_delete_payable_option, axis=1)]['ID'].iloc[0]
+                        selected_delete_payable_id = df[df.apply(lambda x: f"{x['Fornecedor']} - {x['Valor']}" == selected_delete_payable_option, axis=1)]['ID'].iloc[0]
                         st.session_state.delete_payable_id = int(selected_delete_payable_id)
                         st.session_state.show_delete_payable_confirm = True
 
