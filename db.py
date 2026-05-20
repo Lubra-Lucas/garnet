@@ -3,8 +3,7 @@ import os
 from sqlmodel import SQLModel, create_engine
 import streamlit as st
 
-# Get database URL from environment with fallback to SQLite
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///data/app.db")
+DATABASE_URL = "sqlite:///data/app.db"
 
 # Handle connection arguments
 connect_args = {}
@@ -27,16 +26,6 @@ def get_engine():
         "echo": False,
         "connect_args": connect_args,
     }
-    
-    # Add PostgreSQL specific settings
-    if DATABASE_URL.startswith("postgresql"):
-        engine_kwargs.update({
-            "pool_size": 5,
-            "max_overflow": 10,
-            "pool_timeout": 30,
-            "pool_recycle": 3600,  # Recycle connections every hour
-            "pool_pre_ping": True,  # Validate connections before use
-        })
     
     return create_engine(DATABASE_URL, **engine_kwargs)
 
@@ -78,7 +67,7 @@ def get_session():
 
 def get_db_info():
     """Get database connection information"""
-    db_type = "PostgreSQL" if "postgresql" in DATABASE_URL else "SQLite"
+    db_type = "SQLite"
     db_location = DATABASE_URL.split("://")[1] if "://" in DATABASE_URL else DATABASE_URL
     return {
         "type": db_type,
