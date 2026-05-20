@@ -10,6 +10,7 @@ def get_current_datetime():
 
 class User(SQLModel, table=True):
     """User model for authentication and authorization"""
+    __table_args__ = {"extend_existing": True}
     id: Optional[int] = Field(default=None, primary_key=True)
     username: str = Field(index=True, unique=True)
     name: str
@@ -20,6 +21,7 @@ class User(SQLModel, table=True):
 
 class Supplier(SQLModel, table=True):
     """Supplier/Vendor model"""
+    __table_args__ = {"extend_existing": True}
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
     cnpj: Optional[str] = Field(default=None, index=True)
@@ -37,6 +39,7 @@ class Supplier(SQLModel, table=True):
 
 class RawMaterial(SQLModel, table=True):
     """Raw Material model"""
+    __table_args__ = {"extend_existing": True}
     id: Optional[int] = Field(default=None, primary_key=True)
     code: str = Field(index=True, unique=True)
     name_usual: str
@@ -54,6 +57,7 @@ class RawMaterial(SQLModel, table=True):
 
 class Product(SQLModel, table=True):
     """Finished Product model"""
+    __table_args__ = {"extend_existing": True}
     id: Optional[int] = Field(default=None, primary_key=True)
     code: str = Field(index=True, unique=True)
     name: str
@@ -68,6 +72,7 @@ class Product(SQLModel, table=True):
 
 class Formulation(SQLModel, table=True):
     """Product formulation/recipe model"""
+    __table_args__ = {"extend_existing": True}
     id: Optional[int] = Field(default=None, primary_key=True)
     product_id: int = Field(foreign_key="product.id")
     version: str = Field(default="v1")
@@ -79,6 +84,7 @@ class Formulation(SQLModel, table=True):
 
 class FormulaItem(SQLModel, table=True):
     """Individual items within a formulation"""
+    __table_args__ = {"extend_existing": True}
     id: Optional[int] = Field(default=None, primary_key=True)
     formulation_id: int = Field(foreign_key="formulation.id")
     raw_material_id: int = Field(foreign_key="rawmaterial.id")
@@ -88,6 +94,7 @@ class FormulaItem(SQLModel, table=True):
 
 class StockLot(SQLModel, table=True):
     """Stock lot tracking for both raw materials and finished products"""
+    __table_args__ = {"extend_existing": True}
     id: Optional[int] = Field(default=None, primary_key=True)
     item_type: str  # MP (Raw Material) or PA (Finished Product)
     item_id: int  # ID of RawMaterial or Product
@@ -104,6 +111,7 @@ class StockLot(SQLModel, table=True):
 
 class ProductionOrder(SQLModel, table=True):
     """Production order model"""
+    __table_args__ = {"extend_existing": True}
     id: Optional[int] = Field(default=None, primary_key=True)
     code: str = Field(index=True, unique=True)
     product_id: int = Field(foreign_key="product.id")
@@ -118,6 +126,7 @@ class ProductionOrder(SQLModel, table=True):
 
 class PurchaseOrder(SQLModel, table=True):
     """Purchase order header"""
+    __table_args__ = {"extend_existing": True}
     id: Optional[int] = Field(default=None, primary_key=True)
     code: str = Field(index=True, unique=True)
     supplier_id: int = Field(foreign_key="supplier.id")
@@ -130,6 +139,7 @@ class PurchaseOrder(SQLModel, table=True):
 
 class PurchaseItem(SQLModel, table=True):
     """Purchase order line items"""
+    __table_args__ = {"extend_existing": True}
     id: Optional[int] = Field(default=None, primary_key=True)
     po_id: int = Field(foreign_key="purchaseorder.id")
     raw_material_id: Optional[int] = Field(default=None, foreign_key="rawmaterial.id")
@@ -142,6 +152,7 @@ class PurchaseItem(SQLModel, table=True):
 
 class Payable(SQLModel, table=True):
     """Accounts payable model"""
+    __table_args__ = {"extend_existing": True}
     id: Optional[int] = Field(default=None, primary_key=True)
     supplier_id: Optional[int] = Field(default=None, foreign_key="supplier.id")
     doc_ref: str  # Document reference (invoice number, contract, etc.)
@@ -160,6 +171,7 @@ class Payable(SQLModel, table=True):
 
 class Receivable(SQLModel, table=True):
     """Accounts receivable model"""
+    __table_args__ = {"extend_existing": True}
     id: Optional[int] = Field(default=None, primary_key=True)
     customer_name: Optional[str] = None  # Customer name since we don't have a customer table yet
     doc_ref: str  # Document reference (invoice number, contract, etc.)
@@ -177,6 +189,7 @@ class Receivable(SQLModel, table=True):
 
 class QuoteRequest(SQLModel, table=True):
     """Quote request header model"""
+    __table_args__ = {"extend_existing": True}
     id: Optional[int] = Field(default=None, primary_key=True)
     code: str = Field(index=True, unique=True)
     request_number: Optional[str] = Field(default=None, index=True)  # Número da solicitação
@@ -192,6 +205,7 @@ class QuoteRequest(SQLModel, table=True):
 
 class QuoteItem(SQLModel, table=True):
     """Quote request line items"""
+    __table_args__ = {"extend_existing": True}
     id: Optional[int] = Field(default=None, primary_key=True)
     quote_request_id: int = Field(foreign_key="quoterequest.id")
     item_type: str  # MP (Raw Material) or PA (Finished Product)
@@ -210,6 +224,7 @@ class QuoteItem(SQLModel, table=True):
 
 class StockMovement(SQLModel, table=True):
     """Stock movement tracking for entries and withdrawals"""
+    __table_args__ = {"extend_existing": True}
     id: Optional[int] = Field(default=None, primary_key=True)
     movement_type: str  # Entrada, Saída
     item_type: str  # MP (Raw Material) or PA (Finished Product)
@@ -227,6 +242,7 @@ class StockMovement(SQLModel, table=True):
 
 class QualityTest(SQLModel, table=True):
     """Quality control test results"""
+    __table_args__ = {"extend_existing": True}
     id: Optional[int] = Field(default=None, primary_key=True)
     lot_id: int = Field(foreign_key="stocklot.id")
     test_type: str  # Físico-Químico, Microbiológico, Sensorial
