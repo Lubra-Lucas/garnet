@@ -2,6 +2,7 @@
 import streamlit as st
 from auth import require_login, has_permission
 from sqlmodel import Session, select
+from sqlalchemy import func
 from db import engine
 from models import Payable, Supplier, PurchaseOrder, Receivable
 import pandas as pd
@@ -39,7 +40,7 @@ with tab1:
     search_term_payable = st.text_input("🔍 Buscar por documento, fornecedor ou observações:", key="search_payable")
 
     # Filters
-    filter_col1, filter_col2, filter_col3, filter_col4, filter_col5 = st.columns(5)
+    filter_col1, filter_col2, filter_col3, filter_col4, filter_col5, filter_col6 = st.columns(6)
 
     with filter_col1:
         status_filter = st.selectbox("Status:", ["Todos", "Pendente", "Pago", "Vencido"])
@@ -56,6 +57,28 @@ with tab1:
         date_range = st.selectbox("Período:", ["Todos", "Vence Hoje", "Próximos 7 dias", "Próximos 30 dias", "Vencidos"])
 
     with filter_col4:
+        month_options = [
+            ("Todos", None),
+            ("Janeiro", 1),
+            ("Fevereiro", 2),
+            ("Março", 3),
+            ("Abril", 4),
+            ("Maio", 5),
+            ("Junho", 6),
+            ("Julho", 7),
+            ("Agosto", 8),
+            ("Setembro", 9),
+            ("Outubro", 10),
+            ("Novembro", 11),
+            ("Dezembro", 12),
+        ]
+        month_filter = st.selectbox(
+            "Mês:",
+            [label for label, _ in month_options],
+            key="payable_month",
+        )
+
+    with filter_col5:
         # Get unique expense types for filter
         with Session(engine) as session:
             expense_types = session.exec(select(Payable.expense_type).distinct().where(Payable.expense_type.isnot(None))).all()
@@ -63,7 +86,7 @@ with tab1:
 
         expense_type_filter = st.selectbox("Tipo de Gasto:", expense_type_options)
 
-    with filter_col5:
+    with filter_col6:
         value_min = st.number_input("Valor mínimo:", min_value=0.0, value=0.0, step=100.0, key="payable_min")
         value_max = st.number_input("Valor máximo:", min_value=0.0, value=0.0, step=100.0, key="payable_max")
 
@@ -91,6 +114,10 @@ with tab1:
 
         if supplier_filter != "Todos":
             query = query.where(Supplier.name == supplier_filter)
+
+        selected_month = dict(month_options)[month_filter]
+        if selected_month is not None:
+            query = query.where(func.extract("month", Payable.due_date) == selected_month)
 
         if expense_type_filter != "Todos":
             query = query.where(Payable.expense_type == expense_type_filter)
