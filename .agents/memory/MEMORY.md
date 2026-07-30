@@ -1,0 +1,1 @@
+- [Fallback de banco](database-connection-fallback.md) — usar SQLite somente como contingência no desenvolvimento; produção deve falhar explicitamente com PostgreSQL inválido.

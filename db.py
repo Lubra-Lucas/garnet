@@ -1,7 +1,14 @@
 # db.py
 import os
+import logging
 import streamlit as st
 from sqlmodel import SQLModel, create_engine
+from sqlalchemy import text
+
+
+logger = logging.getLogger(__name__)
+SQLITE_DATABASE_URL = "sqlite:///data/app.db"
+DATABASE_FALLBACK_USED = False
 
 
 def get_database_url():
@@ -14,8 +21,10 @@ def get_database_url():
     Replit / Linux:
         usa data/app.db
 
-    Se existir DATABASE_URL no ambiente/secrets:
-        usa ela primeiro.
+    Se existir DATABASE_URL no ambiente/secrets, tenta usar PostgreSQL.
+    No desenvolvimento, se essa conexão estiver indisponível, usa o SQLite
+    local para que o sistema continue acessível. Em produção, a falha é
+    propagada para não mascarar uma configuração inválida.
     """
 
     database_url = os.getenv("DATABASE_URL")
@@ -34,7 +43,7 @@ def get_database_url():
         return "sqlite:///C:/garnet/data/app.db"
 
     os.makedirs("data", exist_ok=True)
-    return "sqlite:///data/app.db"
+    return SQLITE_DATABASE_URL
 
 
 DATABASE_URL = get_database_url()
@@ -47,19 +56,46 @@ if DATABASE_URL.startswith("sqlite"):
 
 elif DATABASE_URL.startswith("postgresql"):
     connect_args = {
-        "sslmode": "prefer",
+        "sslmode": "require",
         "connect_timeout": 10,
     }
 
 
 @st.cache_resource
 def get_engine():
+    global DATABASE_FALLBACK_USED
+
     engine_kwargs = {
         "echo": False,
         "connect_args": connect_args,
+        "pool_pre_ping": True,
     }
 
-    return create_engine(DATABASE_URL, **engine_kwargs)
+    candidate = create_engine(DATABASE_URL, **engine_kwargs)
+
+    if not DATABASE_URL.startswith("postgresql"):
+        return candidate
+
+    try:
+        with candidate.connect() as connection:
+            connection.execute(text("SELECT 1"))
+        return candidate
+    except Exception:
+        # A local preview must remain usable when an old/invalid PostgreSQL
+        # secret is present. Deployments still fail explicitly instead.
+        if os.getenv("REPLIT_DEPLOYMENT") or os.getenv("APP_ENV") == "production":
+            raise
+
+        DATABASE_FALLBACK_USED = True
+        logger.warning(
+            "PostgreSQL indisponível no desenvolvimento; usando SQLite local."
+        )
+        return create_engine(
+            SQLITE_DATABASE_URL,
+            echo=False,
+            connect_args={"check_same_thread": False},
+            pool_pre_ping=True,
+        )
 
 
 engine = get_engine()
@@ -104,11 +140,12 @@ def get_session():
 
 
 def get_db_info():
-    db_type = "PostgreSQL" if DATABASE_URL.startswith("postgresql") else "SQLite"
-    db_location = DATABASE_URL.split("://")[1] if "://" in DATABASE_URL else DATABASE_URL
+    active_url = SQLITE_DATABASE_URL if DATABASE_FALLBACK_USED else DATABASE_URL
+    db_type = "PostgreSQL" if active_url.startswith("postgresql") else "SQLite"
+    db_location = active_url.split("://")[1] if "://" in active_url else active_url
 
     return {
         "type": db_type,
         "location": db_location,
-        "url": DATABASE_URL,
+        "url": active_url,
     }
